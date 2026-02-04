@@ -38,7 +38,7 @@ add_library(sacre-common
 )
 
 # Sacre Injector
-add_executable(sacre-inject src/inject/main.cpp)
+add_executable(sacre-inject src/inject/main.cpp src/inject/injector.cpp)
 target_link_libraries(sacre-inject sacre-common)
 
 # Sacre Loader
@@ -48,6 +48,9 @@ target_link_libraries(sacre-loader sacre-common)
 # Unit Tests
 add_executable(policy_test src/common/policy_test.cpp)
 target_link_libraries(policy_test sacre-common)
+
+add_executable(injector_test src/inject/injector_test.cpp src/inject/injector.cpp)
+target_link_libraries(injector_test sacre-common)
 
 # Test Target
 add_executable(test_target src/test_target.cpp)
