@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "src/common/policy.h"
+#include "src/common/file_closer.h"
 
 namespace sacre {
 namespace inject {
@@ -62,18 +63,18 @@ Result<bool> RunInjection(const Args& args) {
 
   // 4. Write blob to temporary file
   char blob_path[] = "/tmp/sacre_policyXXXXXX";
-  int fd = mkstemp(blob_path);
-  if (fd == -1) {
+  FileCloser fd(mkstemp(blob_path));
+  if (!fd.is_valid()) {
     return Result<bool>::Failure("Failed to create temporary file");
   }
-  
-  if (write(fd, serialize_result.value.data(), serialize_result.value.size()) != 
+
+  if (write(fd.get(), serialize_result.value.data(),
+            serialize_result.value.size()) !=
       static_cast<ssize_t>(serialize_result.value.size())) {
-    close(fd);
     unlink(blob_path);
     return Result<bool>::Failure("Failed to write to temporary file");
   }
-  close(fd);
+  // fd is closed by FileCloser RAII
 
   // 5. Call objcopy to inject section
   // We use a simple system() call but we wrap arguments in quotes to be safer.
