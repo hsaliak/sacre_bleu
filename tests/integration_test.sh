@@ -1,5 +1,5 @@
 #!/bin/bash
-# Integration test for bleu-loader / sacre-injector
+# Integration test for loader / injector
 
 INJECTOR=$1
 LOADER=$2

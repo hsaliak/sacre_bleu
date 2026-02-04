@@ -1,4 +1,4 @@
-#include "src/sacre-injector/injector.h"
+#include "src/injector/injector.h"
 
 #include <array>
 #include <fstream>
@@ -103,10 +103,10 @@ Result<bool> RunInjection(const Args& args) {
   }
 
   // 5. Call objcopy to inject section
-  SafeExecute({"objcopy", "--remove-section=.sacre_policy", args.target_path});
+  SafeExecute({"objcopy", "--remove-section=.sandbox", args.target_path});
   
   bool const success = SafeExecute({"objcopy", "--add-section", 
-                              ".sacre_policy=" + std::string(blob_path.data()), 
+                              ".sandbox=" + std::string(blob_path.data()), 
                               args.target_path});
   unlink(blob_path.data());
 

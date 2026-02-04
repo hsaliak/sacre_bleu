@@ -6,6 +6,7 @@
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <seccomp.h>
 
 #include <array>
 #include <cstddef>
@@ -15,12 +16,12 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <map>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "src/common/policy.h"
+#include "src/common/file_closer.h"
 
 namespace {
 
@@ -44,76 +45,7 @@ bool SafeExecute(const std::vector<std::string>& args) {
 }
 
 int GetSyscallNr(const std::string& name) {
-    static const std::map<std::string, int> syscalls = {
-        {"read", SYS_read},
-        {"write", SYS_write},
-        {"open", SYS_open},
-        {"close", SYS_close},
-        {"execve", SYS_execve},
-        {"exit", SYS_exit},
-        {"brk", SYS_brk},
-        {"mmap", SYS_mmap},
-        {"munmap", SYS_munmap},
-        {"mprotect", SYS_mprotect},
-        {"rt_sigaction", SYS_rt_sigaction},
-        {"rt_sigprocmask", SYS_rt_sigprocmask},
-        {"arch_prctl", SYS_arch_prctl},
-        {"set_tid_address", SYS_set_tid_address},
-        {"fstat", SYS_fstat},
-        {"lseek", SYS_lseek},
-        {"set_robust_list", SYS_set_robust_list},
-        {"prlimit64", SYS_prlimit64},
-        {"getpid", SYS_getpid},
-        {"exit_group", SYS_exit_group},
-        {"access", SYS_access},
-        {"openat", SYS_openat},
-        {"fstatfs", SYS_fstatfs},
-        {"pread64", SYS_pread64},
-        {"getdents64", SYS_getdents64},
-        {"ioctl", SYS_ioctl},
-        {"fcntl", SYS_fcntl},
-        {"writev", SYS_writev},
-        {"futex", SYS_futex},
-#ifdef __NR_newfstatat
-        {"newfstatat", __NR_newfstatat},
-#endif
-#ifdef __NR_stat
-        {"stat", __NR_stat},
-#endif
-#ifdef __NR_lstat
-        {"lstat", __NR_lstat},
-#endif
-#ifdef __NR_getuid
-        {"getuid", __NR_getuid},
-#endif
-#ifdef __NR_getgid
-        {"getgid", __NR_getgid},
-#endif
-#ifdef __NR_geteuid
-        {"geteuid", __NR_geteuid},
-#endif
-#ifdef __NR_getegid
-        {"getegid", __NR_getegid},
-#endif
-#ifdef __NR_uname
-        {"uname", __NR_uname},
-#endif
-#ifdef __NR_readlink
-        {"readlink", __NR_readlink},
-#endif
-#ifdef __NR_gettid
-        {"gettid", __NR_gettid},
-#endif
-#ifdef __NR_getpgrp
-        {"getpgrp", __NR_getpgrp},
-#endif
-#ifdef __NR_execveat
-        {"execveat", __NR_execveat},
-#endif
-    };
-    auto const iter = syscalls.find(name);
-    if (iter != syscalls.end()) return iter->second;
-    return -1;
+    return seccomp_syscall_resolve_name(name.c_str());
 }
 
 bool ApplySeccomp(const std::vector<std::string>& allowed_syscalls) {
@@ -150,6 +82,8 @@ bool ApplySeccomp(const std::vector<std::string>& allowed_syscalls) {
         if (syscall_nr != -1) {
             filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<uint32_t>(syscall_nr), 0, 1));
             filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+        } else {
+            std::cerr << "Warning: unknown syscall '" << name << "' in policy, ignoring.\n";
         }
     }
 
@@ -179,15 +113,15 @@ int main(int argc, char** argv) {
 
     std::string const target_path = argv[1];
 
-    constexpr size_t kPathSize = 34;
-    std::array<char, kPathSize> tmp_policy = {"/tmp/bleu_policy_extractedXXXXXX"};
-    // NOLINTNEXTLINE(misc-include-cleaner)
-    int const tmp_fd = mkstemp(tmp_policy.data());
-    if (tmp_fd != -1) {
-        close(tmp_fd);
-        SafeExecute({"objcopy", "--dump-section", 
-                     ".sacre_policy=" + std::string(tmp_policy.data()), 
-                     target_path, "/dev/null"});
+    constexpr size_t kPathSize = 35;
+    std::array<char, kPathSize> tmp_policy = {"/tmp/sacre_policy_extractedXXXXXX"};
+    {
+        sacre::FileCloser const tmp_fd(mkstemp(tmp_policy.data()));
+        if (tmp_fd.is_valid()) {
+            SafeExecute({"objcopy", "--dump-section", 
+                         ".sandbox=" + std::string(tmp_policy.data()), 
+                         target_path, "/dev/null"});
+        }
     }
 
     sacre::policy::Policy policy;
@@ -203,9 +137,7 @@ int main(int argc, char** argv) {
             policy_file.close();
         }
     }
-    if (tmp_fd != -1) {
-        unlink(tmp_policy.data());
-    }
+    unlink(tmp_policy.data());
 
     int flags = 0;
     if ((policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kPid)) != 0U) flags |= CLONE_NEWPID;
