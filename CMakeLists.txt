@@ -45,13 +45,29 @@ target_link_libraries(sacre-inject sacre-common)
 add_executable(sacre-loader src/loader/main.cpp)
 target_link_libraries(sacre-loader sacre-common)
 
+# Testing
+enable_testing()
+
 # Unit Tests
 add_executable(policy_test src/common/policy_test.cpp)
 target_link_libraries(policy_test sacre-common)
+add_test(NAME policy_unit_test COMMAND policy_test)
 
 add_executable(injector_test src/inject/injector_test.cpp src/inject/injector.cpp)
 target_link_libraries(injector_test sacre-common)
+add_test(NAME injector_unit_test COMMAND injector_test)
+
+# Integration Test
+add_test(NAME integration_test
+         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
+         $<TARGET_FILE:sacre-inject>
+         $<TARGET_FILE:sacre-loader>
+         $<TARGET_FILE:minimal_target>
+         ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_policy_no_seccomp.ini)
 
 # Test Target
 add_executable(test_target src/test_target.cpp)
 target_link_options(test_target PRIVATE -static)
+
+add_executable(minimal_target src/minimal_target.cpp)
+target_link_options(minimal_target PRIVATE -static)
