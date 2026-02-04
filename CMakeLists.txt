@@ -114,7 +114,7 @@ if(CLANG_TIDY_EXE)
        "src/*.c")
   
   add_custom_target(fix-style
-    COMMAND ${CLANG_TIDY_EXE} -p ${CMAKE_BINARY_DIR} --fix ${ALL_SOURCE_FILES}
+    COMMAND ${CLANG_TIDY_EXE} -p ${CMAKE_BINARY_DIR} --fix-errors ${ALL_SOURCE_FILES}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Applying automated clang-tidy fixes to all source files..."
   )
