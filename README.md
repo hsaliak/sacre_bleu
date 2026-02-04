@@ -1,10 +1,10 @@
-# Bleu-Loader / Sacre-Inject
+# Bleu-Loader / Sacre-Injector
 
 Sacre is a suite of security tools designed to harden Linux binaries using a "Policy-as-Data" approach. It allows developers to define fine-grained security policies (syscall whitelists and namespace isolation), inject them directly into ELF binaries, and enforce them at runtime.
 
 ## Core Components
 
-### 1. `sacre-inject`
+### 1. `sacre-injector`
 The **Injector** is responsible for taking a security policy (in `.ini` format) and embedding it into a target ELF binary.
 *   **Mechanism:** It creates a custom, non-allocatable ELF section named `.sandbox`.
 *   **Integrity:** The policy becomes part of the binary's metadata, ensuring it travels with the executable.
@@ -53,7 +53,7 @@ uts=true
 
 #### 2. Inject the Policy
 ```bash
-./sacre-inject my_app policy.ini
+./sacre-injector my_app policy.ini
 ```
 
 #### 3. Run with Enforcement

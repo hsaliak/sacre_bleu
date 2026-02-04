@@ -2,12 +2,12 @@
 #include <cstring>
 #include <iostream>
 #include <vector>
-#include "src/inject/injector.h"
+#include "src/sacre-injector/injector.h"
 
 using namespace sacre::inject;
 
 void TestParseArgsValid() {
-  const char* argv[] = {"sacre-inject", "policy.ini", "binary"};
+  const char* argv[] = {"sacre-injector", "policy.ini", "binary"};
   auto result = ParseArgs(3, const_cast<char**>(argv));
   assert(result.success);
   assert(result.value.ini_path == "policy.ini");
@@ -17,12 +17,12 @@ void TestParseArgsValid() {
 }
 
 void TestParseArgsHelp() {
-  const char* argv[] = {"sacre-inject", "--help"};
+  const char* argv[] = {"sacre-injector", "--help"};
   auto result = ParseArgs(2, const_cast<char**>(argv));
   assert(result.success);
   assert(result.value.show_help);
   
-  const char* argv2[] = {"sacre-inject", "-h"};
+  const char* argv2[] = {"sacre-injector", "-h"};
   auto result2 = ParseArgs(2, const_cast<char**>(argv2));
   assert(result2.success);
   assert(result2.value.show_help);
@@ -30,12 +30,12 @@ void TestParseArgsHelp() {
 }
 
 void TestParseArgsInvalid() {
-  const char* argv[] = {"sacre-inject", "too", "many", "args"};
+  const char* argv[] = {"sacre-injector", "too", "many", "args"};
   auto result = ParseArgs(4, const_cast<char**>(argv));
   assert(!result.success);
   assert(std::strcmp(result.error_message, "Wrong number of arguments") == 0);
 
-  const char* argv2[] = {"sacre-inject", "--unknown"};
+  const char* argv2[] = {"sacre-injector", "--unknown"};
   auto result2 = ParseArgs(2, const_cast<char**>(argv2));
   assert(!result2.success);
   assert(std::strcmp(result2.error_message, "Unknown option") == 0);

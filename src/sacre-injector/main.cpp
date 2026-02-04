@@ -1,17 +1,17 @@
 #include <iostream>
-#include "src/inject/injector.h"
+#include "src/sacre-injector/injector.h"
 
 int main(int argc, char** argv) {
   auto args_result = sacre::inject::ParseArgs(argc, argv);
   if (!args_result.success) {
     std::cerr << "Error: " << args_result.error_message << '\n';
-    std::cerr << "Usage: sacre-inject <policy.ini> <target_binary>" << '\n';
+    std::cerr << "Usage: sacre-injector <policy.ini> <target_binary>" << '\n';
     return 1;
   }
 
   const auto& args = args_result.value;
   if (args.show_help) {
-    std::cout << "Usage: sacre-inject <policy.ini> <target_binary>" << '\n';
+    std::cout << "Usage: sacre-injector <policy.ini> <target_binary>" << '\n';
     std::cout << "Options:" << '\n';
     std::cout << "  -h, --help    Show this help message" << '\n';
     return 0;

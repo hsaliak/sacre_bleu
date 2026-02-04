@@ -33,7 +33,7 @@ name=my_app_profile
 
 
 
-### B. `sacre-inject` (The Injector)
+### B. `sacre-injector` (The Injector)
 
 **Purpose:** Permanently attach the generated policy to the executable.
 
@@ -88,7 +88,7 @@ To ensure the suite works on x86_64, ARM, and RISC-V:
 
 1. **Discovery:** Developer runs `sacre-gen ./my_app`.
 2. **Review:** Developer inspects `policy.ini` to ensure no "dangerous" syscalls (like `_NR_mount`) were captured by accident.
-3. **Hardening:** Developer runs `sacre-inject ./my_app policy.ini`.
+3. **Hardening:** Developer runs `sacre-injector ./my_app policy.ini`.
 4. **Deployment:** The hardened binary is distributed.
 5. **Execution:** The user runs `bleu-loader ./my_app`.
 
