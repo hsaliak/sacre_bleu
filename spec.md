@@ -70,5 +70,5 @@ To ensure the suite works on x86_64, ARM, and RISC-V:
 
 1. **Discovery:** Developer runs `./gen policy.ini ./my_app`.
 2. **Review:** Developer inspects `policy.ini`.
-3. **Hardening:** Developer runs `./injector policy.ini ./my_app`.
-4. **Execution:** The user runs `./loader ./my_app`.
+3. **Hardening:** Developer runs `./injector policy.ini ./my_app ./my_app_hardened`.
+4. **Execution:** The user runs `./loader ./my_app_hardened`.

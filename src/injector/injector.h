@@ -9,6 +9,7 @@ namespace sacre::inject {
 
 struct Args {
   std::string ini_path;
+  std::string source_path;
   std::string target_path;
   bool show_help = false;
 };

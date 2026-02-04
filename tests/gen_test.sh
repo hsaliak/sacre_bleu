@@ -28,8 +28,8 @@ grep -q "execve" "$OUTPUT_INI" || (echo "Error: policy missing execve"; exit 1)
 grep -q "write" "$OUTPUT_INI" || (echo "Error: policy missing write"; exit 1)
 
 # 3. Inject and run to verify it works
-cp "$TARGET" "$TARGET_COPY"
-"$INJECTOR" "$OUTPUT_INI" "$TARGET_COPY"
+"$INJECTOR" "$OUTPUT_INI" "$TARGET" "$TARGET_COPY"
+chmod +x "$TARGET_COPY"
 "$LOADER" "$TARGET_COPY"
 
 echo "gen integration test passed."

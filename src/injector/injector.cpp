@@ -56,12 +56,13 @@ Result<Args> ParseArgs(int argc, char** argv) {
     positional.push_back(arg);
   }
 
-  if (positional.size() != 2) {
+  if (positional.size() != 3) {
     return Result<Args>::Failure("Wrong number of arguments");
   }
 
   args.ini_path = positional[0];
-  args.target_path = positional[1];
+  args.source_path = positional[1];
+  args.target_path = positional[2];
   return Result<Args>::Success(args);
 }
 
@@ -103,7 +104,7 @@ Result<bool> RunInjection(const Args& args) {
   }
 
   // 5. Call objcopy to inject section
-  SafeExecute({"objcopy", "--remove-section=.sandbox", args.target_path});
+  SafeExecute({"objcopy", "--remove-section=.sandbox", args.source_path, args.target_path});
   
   bool const success = SafeExecute({"objcopy", "--add-section", 
                               ".sandbox=" + std::string(blob_path.data()), 

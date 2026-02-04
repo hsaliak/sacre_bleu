@@ -7,11 +7,12 @@
 using namespace sacre::inject;
 
 void TestParseArgsValid() {
-  const char* argv[] = {"injector", "policy.ini", "binary"};
-  auto result = ParseArgs(3, const_cast<char**>(argv));
+  const char* argv[] = {"injector", "policy.ini", "source", "target"};
+  auto result = ParseArgs(4, const_cast<char**>(argv));
   assert(result.success);
   assert(result.value.ini_path == "policy.ini");
-  assert(result.value.target_path == "binary");
+  assert(result.value.source_path == "source");
+  assert(result.value.target_path == "target");
   assert(!result.value.show_help);
   std::cout << "TestParseArgsValid passed!" << std::endl;
 }
@@ -30,8 +31,8 @@ void TestParseArgsHelp() {
 }
 
 void TestParseArgsInvalid() {
-  const char* argv[] = {"injector", "too", "many", "args"};
-  auto result = ParseArgs(4, const_cast<char**>(argv));
+  const char* argv[] = {"injector", "too", "many", "positional", "args"};
+  auto result = ParseArgs(5, const_cast<char**>(argv));
   assert(!result.success);
   assert(std::strcmp(result.error_message, "Wrong number of arguments") == 0);
 

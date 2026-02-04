@@ -61,7 +61,7 @@ allow = read, write, openat, fstat, close, exit_group
 
 #### 3. Inject the Policy
 ```bash
-./injector policy.ini ./my_app
+./injector policy.ini ./my_app ./my_app_hardened
 ```
 
 #### 4. Run with Enforcement

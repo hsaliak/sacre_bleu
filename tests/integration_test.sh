@@ -13,11 +13,13 @@ echo "Target: $TARGET"
 echo "Policy: $POLICY"
 
 # 1. Inject
-"$INJECTOR" "$POLICY" "$TARGET"
+INJECTED_TARGET="${TARGET}.injected"
+"$INJECTOR" "$POLICY" "$TARGET" "$INJECTED_TARGET"
+chmod +x "$INJECTED_TARGET"
 
 # 2. Run
-echo "Running: $LOADER $TARGET $@"
-"$LOADER" "$TARGET" "$@"
+echo "Running: $LOADER $INJECTED_TARGET $@"
+"$LOADER" "$INJECTED_TARGET" "$@"
 RET=$?
 
 if [ "$EXPECT_KILL" == "1" ]; then
