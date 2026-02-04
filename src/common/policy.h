@@ -6,8 +6,13 @@
 #include <string_view>
 #include <vector>
 
+#include "src/common/result.h"
+
 namespace sacre {
 namespace policy {
+
+template <typename T>
+using Result = sacre::Result<T>;
 
 enum class NamespaceType : uint32_t {
   kNone = 0,
@@ -22,17 +27,6 @@ enum class NamespaceType : uint32_t {
 struct Policy {
   uint32_t namespaces = 0;
   std::vector<std::string> allowed_syscalls;
-};
-
-// Simple result type for error handling without exceptions.
-template <typename T>
-struct Result {
-  T value;
-  bool success = false;
-  const char* error_message = nullptr;
-
-  static Result Success(T val) { return {std::move(val), true, nullptr}; }
-  static Result Failure(const char* msg) { return {T(), false, msg}; }
 };
 
 // Parses an INI string into a Policy object.
