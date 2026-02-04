@@ -15,19 +15,10 @@ namespace sacre::policy {
 template <typename T>
 using Result = sacre::Result<T>;
 
-enum class NamespaceType : uint8_t {
-  kNone = 0,
-  kPid = 1 << 0,
-  kNet = 1 << 1,
-  kMount = 1 << 2,
-  kIpc = 1 << 3,
-  kUser = 1 << 4,
-  kUts = 1 << 5,
-};
-
 struct Policy {
-  uint32_t namespaces = 0;
   std::vector<std::string> allowed_syscalls;
+  std::vector<std::string> ro_paths;
+  std::vector<std::string> rw_paths;
 };
 
 // Parses an INI string into a Policy object.
@@ -38,6 +29,9 @@ Result<std::vector<uint8_t>> Serialize(const Policy& policy);
 
 // Deserializes a binary blob into a Policy object.
 Result<Policy> Deserialize(const uint8_t* buffer, size_t size);
+
+// Returns the list of critical syscalls that are always allowed by the loader.
+const std::vector<std::string>& GetCriticalSyscalls();
 
 } // namespace sacre::policy
 

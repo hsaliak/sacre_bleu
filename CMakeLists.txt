@@ -25,6 +25,17 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(GNUInstallDirs)
+
+# Fallback to $HOME if /usr/local is not writable
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    execute_process(COMMAND test -w ${CMAKE_INSTALL_PREFIX} RESULT_VARIABLE CAN_WRITE_DEFAULT_PREFIX)
+    if(NOT CAN_WRITE_DEFAULT_PREFIX EQUAL 0)
+        message(STATUS "Default prefix ${CMAKE_INSTALL_PREFIX} not writable, falling back to $ENV{HOME}")
+        set(CMAKE_INSTALL_PREFIX "$ENV{HOME}" CACHE PATH "Install prefix" FORCE)
+    endif()
+endif()
+
 # Compilation Flags for Google Style/Strictness
 if(MSVC)
   add_compile_options(/W4 /WX)
@@ -58,6 +69,10 @@ add_executable(gen src/gen/main.cpp)
 target_include_directories(gen PRIVATE ${Seccomp_INCLUDE_DIRS})
 target_link_libraries(gen sacre-common ${Seccomp_LIBRARIES})
 
+# Installation
+install(TARGETS injector loader gen
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 # Testing
 enable_testing()
 
@@ -71,23 +86,15 @@ target_link_libraries(injector_test sacre-common)
 add_test(NAME injector_unit_test COMMAND injector_test)
 
 # Integration Tests
-# 1. Basic success (no seccomp, no namespaces)
+# 1. Basic success (seccomp + landlock)
 add_test(NAME integration_test_basic
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
          $<TARGET_FILE:injector>
          $<TARGET_FILE:loader>
          $<TARGET_FILE:minimal_target>
-         ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_policy_no_seccomp.ini)
+         ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_policy.ini)
 
-# 2. Namespace success (enables namespaces, no seccomp)
-add_test(NAME integration_test_namespaces
-         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
-         $<TARGET_FILE:injector>
-         $<TARGET_FILE:loader>
-         $<TARGET_FILE:minimal_target>
-         ${CMAKE_CURRENT_SOURCE_DIR}/tests/namespaces_only.ini)
-
-# 3. Seccomp success (allows needed syscalls)
+# 2. Seccomp success (allows needed syscalls)
 add_test(NAME integration_test_seccomp_success
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
          $<TARGET_FILE:injector>
@@ -95,7 +102,7 @@ add_test(NAME integration_test_seccomp_success
          $<TARGET_FILE:minimal_target>
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/seccomp_safe.ini)
 
-# 4. Seccomp violation (killed when calling forbidden getppid)
+# 3. Seccomp violation (killed when calling forbidden getppid)
 add_test(NAME integration_test_seccomp_violation
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
          $<TARGET_FILE:injector>
@@ -104,14 +111,14 @@ add_test(NAME integration_test_seccomp_violation
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/seccomp_violation.ini)
 set_tests_properties(integration_test_seccomp_violation PROPERTIES ENVIRONMENT "EXPECT_KILL=1")
 
-# 5. Policy Generator Test
+# 4. Policy Generator Test
 add_test(NAME integration_test_gen
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/gen_test.sh
          $<TARGET_FILE:gen>
          $<TARGET_FILE:injector>
          $<TARGET_FILE:loader>
          $<TARGET_FILE:minimal_target>)
-
+#
 # Test Target
 add_executable(test_target src/test_target.cpp)
 target_link_options(test_target PRIVATE -static)
@@ -123,6 +130,8 @@ target_link_options(minimal_target PRIVATE -static -nostdlib)
 add_executable(violation_target src/violation_target.c)
 set_target_properties(violation_target PROPERTIES LINKER_LANGUAGE C)
 target_link_options(violation_target PRIVATE -static -nostdlib)
+
+
 
 # Helper target to run clang-tidy --fix on all files
 if(CLANG_TIDY_EXE)
