@@ -1,4 +1,4 @@
-# Sacre-Loader / Sacre-Inject
+# Bleu-Loader / Sacre-Inject
 
 Sacre is a suite of security tools designed to harden Linux binaries using a "Policy-as-Data" approach. It allows developers to define fine-grained security policies (syscall whitelists and namespace isolation), inject them directly into ELF binaries, and enforce them at runtime.
 
@@ -9,8 +9,8 @@ The **Injector** is responsible for taking a security policy (in `.ini` format) 
 *   **Mechanism:** It creates a custom, non-allocatable ELF section named `.sandbox`.
 *   **Integrity:** The policy becomes part of the binary's metadata, ensuring it travels with the executable.
 
-### 2. `sacre-loader`
-The **Enforcer** is the runtime component that launches the hardened binary.
+### 2. `bleu-loader`
+The **Bleu Enforcer** is the runtime component that launches the hardened binary.
 *   **Parsing:** It extracts the binary policy from the `.sandbox` section of the executable.
 *   **Isolation:**
     *   **Namespaces:** Creates isolated `PID`, `Mount`, and `UTS` namespaces to prevent the target from seeing or interfering with the host system.
@@ -58,7 +58,7 @@ uts=true
 
 #### 3. Run with Enforcement
 ```bash
-./sacre-loader my_app
+./bleu-loader my_app
 ```
 
 ## Policy Format
@@ -70,7 +70,7 @@ The policy uses a binary format for efficiency and security, but can be defined 
 
 ## Security Features
 
-*   **Fail-Closed:** `sacre-loader` will refuse to run binaries that do not contain a valid `.sandbox` section.
+*   **Fail-Closed:** `bleu-loader` will refuse to run binaries that do not contain a valid `.sandbox` section.
 *   **No-Stdlib Support:** Can sandbox minimal, statically-linked binaries.
 *   **Namespace Isolation:** Prevents lateral movement and information leaks via the `/proc` or `/sys` filesystems.
 *   **Shell Injection Resistant:** Uses safe process spawning mechanisms (`execv`) instead of shell-mediated calls.

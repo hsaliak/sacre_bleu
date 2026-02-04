@@ -44,9 +44,9 @@ add_library(sacre-common
 add_executable(sacre-inject src/inject/main.cpp src/inject/injector.cpp)
 target_link_libraries(sacre-inject sacre-common)
 
-# Sacre Loader
-add_executable(sacre-loader src/loader/main.cpp)
-target_link_libraries(sacre-loader sacre-common)
+# Bleu Loader
+add_executable(bleu-loader src/bleu-loader/main.cpp)
+target_link_libraries(bleu-loader sacre-common)
 
 # Testing
 enable_testing()
@@ -65,7 +65,7 @@ add_test(NAME injector_unit_test COMMAND injector_test)
 add_test(NAME integration_test_basic
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
          $<TARGET_FILE:sacre-inject>
-         $<TARGET_FILE:sacre-loader>
+         $<TARGET_FILE:bleu-loader>
          $<TARGET_FILE:minimal_target>
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_policy_no_seccomp.ini)
 
@@ -73,7 +73,7 @@ add_test(NAME integration_test_basic
 add_test(NAME integration_test_namespaces
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
          $<TARGET_FILE:sacre-inject>
-         $<TARGET_FILE:sacre-loader>
+         $<TARGET_FILE:bleu-loader>
          $<TARGET_FILE:minimal_target>
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/namespaces_only.ini)
 
@@ -81,7 +81,7 @@ add_test(NAME integration_test_namespaces
 add_test(NAME integration_test_seccomp_success
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
          $<TARGET_FILE:sacre-inject>
-         $<TARGET_FILE:sacre-loader>
+         $<TARGET_FILE:bleu-loader>
          $<TARGET_FILE:minimal_target>
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/seccomp_safe.ini)
 
@@ -89,7 +89,7 @@ add_test(NAME integration_test_seccomp_success
 add_test(NAME integration_test_seccomp_violation
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
          $<TARGET_FILE:sacre-inject>
-         $<TARGET_FILE:sacre-loader>
+         $<TARGET_FILE:bleu-loader>
          $<TARGET_FILE:violation_target>
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/seccomp_violation.ini)
 set_tests_properties(integration_test_seccomp_violation PROPERTIES ENVIRONMENT "EXPECT_KILL=1")

@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
     std::string const target_path = argv[1];
 
     constexpr size_t kPathSize = 34;
-    std::array<char, kPathSize> tmp_policy = {"/tmp/sacre_policy_extractedXXXXXX"};
+    std::array<char, kPathSize> tmp_policy = {"/tmp/bleu_policy_extractedXXXXXX"};
     // NOLINTNEXTLINE(misc-include-cleaner)
     int const tmp_fd = mkstemp(tmp_policy.data());
     if (tmp_fd != -1) {

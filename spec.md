@@ -47,7 +47,7 @@ name=my_app_profile
 
 
 
-### C. `sacre-loader` (The Enforcer)
+### C. `bleu-loader` (The Enforcer)
 
 **Purpose:** The entry point that parses the `.sandbox` section and locks down the environment before execution.
 
@@ -80,7 +80,7 @@ To ensure the suite works on x86_64, ARM, and RISC-V:
 ### Security Guarantees
 
 * **Inheritance:** The loader must ensure all child processes created by the target are subject to the same `.sandbox` rules.
-* **Integrity:** `sacre-loader` should ideally check if the `.sandbox` section exists; if a binary is missing its section, the loader should refuse to run it (Fail-Closed).
+* **Integrity:** `bleu-loader` should ideally check if the `.sandbox` section exists; if a binary is missing its section, the loader should refuse to run it (Fail-Closed).
 
 ---
 
@@ -90,7 +90,7 @@ To ensure the suite works on x86_64, ARM, and RISC-V:
 2. **Review:** Developer inspects `policy.ini` to ensure no "dangerous" syscalls (like `_NR_mount`) were captured by accident.
 3. **Hardening:** Developer runs `sacre-inject ./my_app policy.ini`.
 4. **Deployment:** The hardened binary is distributed.
-5. **Execution:** The user runs `sacre-loader ./my_app`.
+5. **Execution:** The user runs `bleu-loader ./my_app`.
 
 ---
 
