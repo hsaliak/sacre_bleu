@@ -1,22 +1,47 @@
 #include <linux/audit.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <sched.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <string>
-#include <vector>
+#include <iterator>
 #include <map>
-#include <cstddef>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "src/common/policy.h"
 
 namespace {
+
+bool SafeExecute(const std::vector<std::string>& args) {
+    pid_t const pid = fork();
+    if (pid == 0) {
+        std::vector<char*> c_args;
+        c_args.reserve(args.size() + 1);
+        for (const auto& arg : args) {
+            c_args.push_back(const_cast<char*>(arg.c_str()));
+        }
+        c_args.push_back(nullptr);
+        execvp(c_args[0], c_args.data());
+        _exit(1);
+    } else if (pid > 0) {
+        int status = 0;
+        waitpid(pid, &status, 0);
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+    return false;
+}
 
 int GetSyscallNr(const std::string& name) {
     static const std::map<std::string, int> syscalls = {
@@ -70,15 +95,31 @@ int GetSyscallNr(const std::string& name) {
 #ifdef __NR_getegid
         {"getegid", __NR_getegid},
 #endif
+#ifdef __NR_uname
+        {"uname", __NR_uname},
+#endif
+#ifdef __NR_readlink
+        {"readlink", __NR_readlink},
+#endif
+#ifdef __NR_gettid
+        {"gettid", __NR_gettid},
+#endif
+#ifdef __NR_getpgrp
+        {"getpgrp", __NR_getpgrp},
+#endif
+#ifdef __NR_execveat
+        {"execveat", __NR_execveat},
+#endif
     };
-    auto it = syscalls.find(name);
-    if (it != syscalls.end()) return it->second;
+    auto const iter = syscalls.find(name);
+    if (iter != syscalls.end()) return iter->second;
     return -1;
 }
 
 bool ApplySeccomp(const std::vector<std::string>& allowed_syscalls) {
     std::vector<sock_filter> filter;
     
+    // NOLINTBEGIN(misc-include-cleaner)
     filter.push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (uint32_t)(offsetof(struct seccomp_data, arch))));
 #ifdef __x86_64__
     filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0));
@@ -90,76 +131,95 @@ bool ApplySeccomp(const std::vector<std::string>& allowed_syscalls) {
     filter.push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (uint32_t)(offsetof(struct seccomp_data, nr))));
 
     // Critical ones
-    filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, (uint32_t)SYS_execve, 0, 1));
-    filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
-    filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, (uint32_t)SYS_exit_group, 0, 1));
-    filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
-    filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, (uint32_t)SYS_exit, 0, 1));
-    filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+    static constexpr std::array critical_syscalls = {
+        SYS_execve, SYS_exit_group, SYS_exit, SYS_brk, SYS_arch_prctl,
+        SYS_mmap, SYS_munmap, SYS_mprotect, SYS_fstat, SYS_read, SYS_write,
+        SYS_close, SYS_rt_sigaction, SYS_rt_sigprocmask, 
+#ifdef __NR_execveat
+        __NR_execveat,
+#endif
+    };
+
+    for (int const syscall_nr : critical_syscalls) {
+        filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<uint32_t>(syscall_nr), 0, 1));
+        filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+    }
 
     for (const auto& name : allowed_syscalls) {
-        int nr = GetSyscallNr(name);
-        if (nr != -1) {
-            filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, (uint32_t)nr, 0, 1));
+        int const syscall_nr = GetSyscallNr(name);
+        if (syscall_nr != -1) {
+            filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<uint32_t>(syscall_nr), 0, 1));
             filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
         }
     }
 
     filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL));
 
-    struct sock_fprog prog;
-    prog.len = (unsigned short)filter.size();
+    struct sock_fprog prog{};
+    prog.len = static_cast<unsigned short>(filter.size()); // NOLINT(google-runtime-int)
     prog.filter = filter.data();
 
-    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
         return false;
     }
-    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
         return false;
     }
+    // NOLINTEND(misc-include-cleaner)
     return true;
 }
 
 } // namespace
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <target_binary> [args...]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <target_binary> [args...]\n";
         return 1;
     }
 
-    std::string target_path = argv[1];
+    std::string const target_path = argv[1];
 
-    std::string tmp_policy = "/tmp/extracted_policy.bin";
-    std::string cmd = "objcopy --dump-section .sacre_policy=" + tmp_policy + " " + target_path + " /dev/null 2>&1";
-    std::system(cmd.c_str());
+    constexpr size_t kPathSize = 34;
+    std::array<char, kPathSize> tmp_policy = {"/tmp/sacre_policy_extractedXXXXXX"};
+    // NOLINTNEXTLINE(misc-include-cleaner)
+    int const tmp_fd = mkstemp(tmp_policy.data());
+    if (tmp_fd != -1) {
+        close(tmp_fd);
+        SafeExecute({"objcopy", "--dump-section", 
+                     ".sacre_policy=" + std::string(tmp_policy.data()), 
+                     target_path, "/dev/null"});
+    }
 
     sacre::policy::Policy policy;
-    std::ifstream policy_file(tmp_policy, std::ios::binary);
-    if (policy_file.is_open()) {
-        std::vector<uint8_t> buffer((std::istreambuf_iterator<char>(policy_file)),
-                                     std::istreambuf_iterator<char>());
-        auto result = sacre::policy::Deserialize(buffer.data(), buffer.size());
-        if (result.success) {
-            policy = std::move(result.value);
+    {
+        std::ifstream policy_file(tmp_policy.data(), std::ios::binary);
+        if (policy_file.is_open()) {
+            std::vector<uint8_t> const buffer((std::istreambuf_iterator<char>(policy_file)),
+                                         std::istreambuf_iterator<char>());
+            auto result = sacre::policy::Deserialize(buffer.data(), buffer.size());
+            if (result.success) {
+                policy = std::move(result.value);
+            }
+            policy_file.close();
         }
-        policy_file.close();
-        unlink(tmp_policy.c_str());
+    }
+    if (tmp_fd != -1) {
+        unlink(tmp_policy.data());
     }
 
     int flags = 0;
-    if (policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kPid)) flags |= CLONE_NEWPID;
-    if (policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kNet)) flags |= CLONE_NEWNET;
-    if (policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kMount)) flags |= CLONE_NEWNS;
-    if (policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kIpc)) flags |= CLONE_NEWIPC;
-    if (policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kUts)) flags |= CLONE_NEWUTS;
-    if (policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kUser)) flags |= CLONE_NEWUSER;
+    if ((policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kPid)) != 0U) flags |= CLONE_NEWPID;
+    if ((policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kNet)) != 0U) flags |= CLONE_NEWNET;
+    if ((policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kMount)) != 0U) flags |= CLONE_NEWNS;
+    if ((policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kIpc)) != 0U) flags |= CLONE_NEWIPC;
+    if ((policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kUts)) != 0U) flags |= CLONE_NEWUTS;
+    if ((policy.namespaces & static_cast<uint32_t>(sacre::policy::NamespaceType::kUser)) != 0U) flags |= CLONE_NEWUSER;
 
     if (flags != 0) {
         unshare(flags);
     }
 
-    pid_t pid = fork();
+    pid_t const pid = fork();
     if (pid < 0) {
         perror("fork");
         return 1;
@@ -173,6 +233,7 @@ int main(int argc, char* argv[]) {
         }
 
         std::vector<char*> exec_args;
+        exec_args.reserve(static_cast<size_t>(argc));
         for (int i = 1; i < argc; ++i) {
             exec_args.push_back(argv[i]);
         }
@@ -180,13 +241,13 @@ int main(int argc, char* argv[]) {
 
         execv(target_path.c_str(), exec_args.data());
         return 1;
-    } else {
-        int status;
-        waitpid(pid, &status, 0);
-        if (WIFSIGNALED(status)) {
-            std::cerr << "Child killed by signal: " << WTERMSIG(status) << std::endl;
-            return 128 + WTERMSIG(status);
-        }
-        return WEXITSTATUS(status);
     }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    if (WIFSIGNALED(status)) {
+        constexpr int kSignalExitOffset = 128;
+        std::cerr << "Child killed by signal: " << WTERMSIG(status) << "\n";
+        return kSignalExitOffset + WTERMSIG(status);
+    }
+    return WEXITSTATUS(status);
 }

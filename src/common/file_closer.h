@@ -34,13 +34,13 @@ class FileCloser {
     return *this;
   }
 
-  int get() const { return fd_; }
+  [[nodiscard]] int get() const { return fd_; }
   
   void release() {
     fd_ = -1;
   }
 
-  bool is_valid() const { return fd_ >= 0; }
+  [[nodiscard]] bool is_valid() const { return fd_ >= 0; }
 
  private:
   int fd_;

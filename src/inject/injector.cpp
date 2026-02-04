@@ -1,33 +1,59 @@
 #include "src/inject/injector.h"
 
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <vector>
+
 #include <cstring>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include "src/common/policy.h"
 #include "src/common/file_closer.h"
 
-namespace sacre {
-namespace inject {
+namespace sacre::inject {
 
-Result<Args> ParseArgs(int argc, char* argv[]) {
+namespace {
+bool SafeExecute(const std::vector<std::string>& args) {
+  pid_t const pid = fork();
+  if (pid == 0) {
+    std::vector<char*> c_args;
+    c_args.reserve(args.size() + 1);
+    for (const auto& arg : args) {
+      c_args.push_back(const_cast<char*>(arg.c_str()));
+    }
+    c_args.push_back(nullptr);
+    execvp(c_args[0], c_args.data());
+    _exit(1);
+  } else if (pid > 0) {
+    int status = 0;
+    waitpid(pid, &status, 0);
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+  }
+  return false;
+}
+}  // namespace
+
+Result<Args> ParseArgs(int argc, char** argv) {
   Args args;
   std::vector<std::string> positional;
 
   for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
+    std::string const arg = argv[i];
     if (arg == "--help" || arg == "-h") {
       args.show_help = true;
       return Result<Args>::Success(args);
-    } else if (arg.empty()) {
-      continue;
-    } else if (arg[0] == '-') {
-      return Result<Args>::Failure("Unknown option");
-    } else {
-      positional.push_back(arg);
     }
+    if (arg.empty()) {
+      continue;
+    }
+    if (arg[0] == '-') {
+      return Result<Args>::Failure("Unknown option");
+    }
+    positional.push_back(arg);
   }
 
   if (positional.size() != 2) {
@@ -45,9 +71,9 @@ Result<bool> RunInjection(const Args& args) {
   if (!ini_file.is_open()) {
     return Result<bool>::Failure("Could not open policy file");
   }
-  std::stringstream ss;
-  ss << ini_file.rdbuf();
-  std::string ini_content = ss.str();
+  std::stringstream ini_stream;
+  ini_stream << ini_file.rdbuf();
+  std::string const ini_content = ini_stream.str();
 
   // 2. Parse INI
   auto parse_result = sacre::policy::ParseIni(ini_content);
@@ -62,37 +88,33 @@ Result<bool> RunInjection(const Args& args) {
   }
 
   // 4. Write blob to temporary file
-  char blob_path[] = "/tmp/sacre_policyXXXXXX";
-  FileCloser fd(mkstemp(blob_path));
-  if (!fd.is_valid()) {
+  constexpr size_t kBlobPathSize = 24;
+  std::array<char, kBlobPathSize> blob_path = {"/tmp/sacre_policyXXXXXX"};
+  FileCloser const policy_fd(mkstemp(blob_path.data()));
+  if (!policy_fd.is_valid()) {
     return Result<bool>::Failure("Failed to create temporary file");
   }
 
-  if (write(fd.get(), serialize_result.value.data(),
+  if (write(policy_fd.get(), serialize_result.value.data(),
             serialize_result.value.size()) !=
       static_cast<ssize_t>(serialize_result.value.size())) {
-    unlink(blob_path);
+    unlink(blob_path.data());
     return Result<bool>::Failure("Failed to write to temporary file");
   }
-  // fd is closed by FileCloser RAII
 
   // 5. Call objcopy to inject section
-  // We use a simple system() call but we wrap arguments in quotes to be safer.
-  // In a real production tool, we should use fork/execve with an array of arguments.
-  std::string cmd = "objcopy --remove-section=.sacre_policy '" + args.target_path +
-                    "' 2>/dev/null; " +
-                    "objcopy --add-section .sacre_policy=" + blob_path + " '" +
-                    args.target_path + "'";
+  SafeExecute({"objcopy", "--remove-section=.sacre_policy", args.target_path});
+  
+  bool const success = SafeExecute({"objcopy", "--add-section", 
+                              ".sacre_policy=" + std::string(blob_path.data()), 
+                              args.target_path});
+  unlink(blob_path.data());
 
-  int ret = std::system(cmd.c_str());
-  unlink(blob_path);
-
-  if (ret != 0) {
+  if (!success) {
     return Result<bool>::Failure("objcopy failed");
   }
 
   return Result<bool>::Success(true);
 }
 
-}  // namespace inject
-}  // namespace sacre
+} // namespace sacre::inject

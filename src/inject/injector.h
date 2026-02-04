@@ -2,11 +2,10 @@
 #define SACRE_INJECT_INJECTOR_H_
 
 #include <string>
-#include <vector>
 #include "src/common/result.h"
 
-namespace sacre {
-namespace inject {
+
+namespace sacre::inject {
 
 struct Args {
   std::string ini_path;
@@ -14,11 +13,11 @@ struct Args {
   bool show_help = false;
 };
 
-Result<Args> ParseArgs(int argc, char* argv[]);
+Result<Args> ParseArgs(int argc, char** argv);
 
 Result<bool> RunInjection(const Args& args);
 
-}  // namespace inject
-}  // namespace sacre
+} // namespace sacre::inject
+
 
 #endif  // SACRE_INJECT_INJECTOR_H_

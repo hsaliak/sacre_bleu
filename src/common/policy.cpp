@@ -1,14 +1,15 @@
 #include "src/common/policy.h"
 
-#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cstring>
+#include <string_view>
+#include <vector>
 
-namespace sacre {
-namespace policy {
+namespace sacre::policy {
 
 namespace {
-
-constexpr uint32_t kMagic = 0x53435200;  // "SCR\0"
+constexpr uint32_t kMagic = 0x00524353; // "SCR\0"
 constexpr uint32_t kVersion = 1;
 
 enum class Tag : uint16_t {
@@ -16,23 +17,59 @@ enum class Tag : uint16_t {
   kSeccomp = 2,
 };
 
-std::string_view Trim(std::string_view s) {
-  auto start = s.find_first_not_of(" \t\r\n");
-  if (start == std::string_view::npos) return "";
-  auto end = s.find_last_not_of(" \t\r\n");
-  return s.substr(start, end - start + 1);
+std::string_view Trim(std::string_view str) {
+  size_t const first = str.find_first_not_of(" \t\r\n");
+  if (first == std::string_view::npos) return "";
+  size_t const last = str.find_last_not_of(" \t\r\n");
+  return str.substr(first, (last - first + 1));
 }
 
-}  // namespace
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+void ParseNamespaceSection(std::string_view key, std::string_view value, Policy& policy) {
+  bool const enabled = (value == "true" || value == "1" || value == "yes");
+  if (!enabled) return;
+
+  if (key == "pid") {
+    policy.namespaces |= static_cast<uint32_t>(NamespaceType::kPid);
+  } else if (key == "net") {
+    policy.namespaces |= static_cast<uint32_t>(NamespaceType::kNet);
+  } else if (key == "mount") {
+    policy.namespaces |= static_cast<uint32_t>(NamespaceType::kMount);
+  } else if (key == "ipc") {
+    policy.namespaces |= static_cast<uint32_t>(NamespaceType::kIpc);
+  } else if (key == "user") {
+    policy.namespaces |= static_cast<uint32_t>(NamespaceType::kUser);
+  } else if (key == "uts") {
+    policy.namespaces |= static_cast<uint32_t>(NamespaceType::kUts);
+  }
+}
+
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+void ParseSeccompSection(std::string_view key, std::string_view value, Policy& policy) {
+  if (key == "allow") {
+    size_t s_pos = 0;
+    while (s_pos < value.size()) {
+      size_t const next_comma = value.find(',', s_pos);
+      std::string_view const syscall_name =
+          Trim(value.substr(s_pos, next_comma - s_pos));
+      if (!syscall_name.empty()) {
+        policy.allowed_syscalls.emplace_back(syscall_name);
+      }
+      if (next_comma == std::string_view::npos) break;
+      s_pos = next_comma + 1;
+    }
+  }
+}
+} // namespace
 
 Result<Policy> ParseIni(std::string_view ini_content) {
   Policy policy;
-  std::string_view current_section = "";
+  std::string_view current_section;
 
   size_t pos = 0;
   while (pos < ini_content.size()) {
-    size_t next_line = ini_content.find('\n', pos);
-    std::string_view line = Trim(ini_content.substr(pos, next_line - pos));
+    size_t const next_line = ini_content.find('\n', pos);
+    std::string_view const line = Trim(ini_content.substr(pos, next_line - pos));
     pos = (next_line == std::string_view::npos) ? ini_content.size() : next_line + 1;
 
     if (line.empty() || line[0] == '#' || line[0] == ';') continue;
@@ -42,43 +79,16 @@ Result<Policy> ParseIni(std::string_view ini_content) {
       continue;
     }
 
-    auto eq_pos = line.find('=');
+    auto const eq_pos = line.find('=');
     if (eq_pos == std::string_view::npos) continue;
 
-    std::string_view key = Trim(line.substr(0, eq_pos));
-    std::string_view value = Trim(line.substr(eq_pos + 1));
+    std::string_view const key = Trim(line.substr(0, eq_pos));
+    std::string_view const value = Trim(line.substr(eq_pos + 1));
 
     if (current_section == "namespaces") {
-      bool enabled = (value == "true" || value == "1" || value == "yes");
-      if (enabled) {
-        if (key == "pid") {
-          policy.namespaces |= static_cast<uint32_t>(NamespaceType::kPid);
-        } else if (key == "net") {
-          policy.namespaces |= static_cast<uint32_t>(NamespaceType::kNet);
-        } else if (key == "mount") {
-          policy.namespaces |= static_cast<uint32_t>(NamespaceType::kMount);
-        } else if (key == "ipc") {
-          policy.namespaces |= static_cast<uint32_t>(NamespaceType::kIpc);
-        } else if (key == "user") {
-          policy.namespaces |= static_cast<uint32_t>(NamespaceType::kUser);
-        } else if (key == "uts") {
-          policy.namespaces |= static_cast<uint32_t>(NamespaceType::kUts);
-        }
-      }
+      ParseNamespaceSection(key, value, policy);
     } else if (current_section == "seccomp") {
-      if (key == "allow") {
-        size_t s_pos = 0;
-        while (s_pos < value.size()) {
-          size_t next_comma = value.find(',', s_pos);
-          std::string_view syscall =
-              Trim(value.substr(s_pos, next_comma - s_pos));
-          if (!syscall.empty()) {
-            policy.allowed_syscalls.emplace_back(syscall);
-          }
-          if (next_comma == std::string_view::npos) break;
-          s_pos = next_comma + 1;
-        }
-      }
+      ParseSeccompSection(key, value, policy);
     }
   }
 
@@ -88,30 +98,29 @@ Result<Policy> ParseIni(std::string_view ini_content) {
 Result<std::vector<uint8_t>> Serialize(const Policy& policy) {
   std::vector<uint8_t> buffer;
 
-  // Header
   auto push_u32 = [&](uint32_t val) {
-    uint8_t bytes[4];
-    std::memcpy(bytes, &val, 4);
-    buffer.insert(buffer.end(), bytes, bytes + 4);
+    std::array<uint8_t, 4> bytes{};
+    std::memcpy(bytes.data(), &val, 4);
+    buffer.insert(buffer.end(), bytes.begin(), bytes.end());
   };
 
   auto push_u16 = [&](uint16_t val) {
-    uint8_t bytes[2];
-    std::memcpy(bytes, &val, 2);
-    buffer.insert(buffer.end(), bytes, bytes + 2);
+    std::array<uint8_t, 2> bytes{};
+    std::memcpy(bytes.data(), &val, 2);
+    buffer.insert(buffer.end(), bytes.begin(), bytes.end());
   };
 
+  // Header
   push_u32(kMagic);
   push_u32(kVersion);
 
   uint32_t entry_count = 0;
-  if (policy.namespaces != 0) entry_count++;
+  if (policy.namespaces != 0U) entry_count++;
   if (!policy.allowed_syscalls.empty()) entry_count++;
-
   push_u32(entry_count);
 
   // Entry: Namespaces
-  if (policy.namespaces != 0) {
+  if (policy.namespaces != 0U) {
     push_u16(static_cast<uint16_t>(Tag::kNamespaces));
     push_u16(4);
     push_u32(policy.namespaces);
@@ -121,20 +130,20 @@ Result<std::vector<uint8_t>> Serialize(const Policy& policy) {
   if (!policy.allowed_syscalls.empty()) {
     push_u16(static_cast<uint16_t>(Tag::kSeccomp));
 
-    // Calculate length
-    uint32_t seccomp_len = 4;  // for the count
-    for (const auto& s : policy.allowed_syscalls) {
-      seccomp_len += s.size() + 1;
+    uint32_t seccomp_len = 4;
+    for (const auto& syscall_name : policy.allowed_syscalls) {
+      seccomp_len += static_cast<uint32_t>(syscall_name.size() + 1);
     }
 
-    if (seccomp_len > 0xFFFF) {
+    constexpr uint32_t kMaxSeccompLen = 0xFFFF;
+    if (seccomp_len > kMaxSeccompLen) {
       return Result<std::vector<uint8_t>>::Failure("Seccomp policy too large");
     }
 
     push_u16(static_cast<uint16_t>(seccomp_len));
     push_u32(static_cast<uint32_t>(policy.allowed_syscalls.size()));
-    for (const auto& s : policy.allowed_syscalls) {
-      buffer.insert(buffer.end(), s.begin(), s.end());
+    for (const auto& syscall_name : policy.allowed_syscalls) {
+      buffer.insert(buffer.end(), syscall_name.begin(), syscall_name.end());
       buffer.push_back('\0');
     }
   }
@@ -142,56 +151,73 @@ Result<std::vector<uint8_t>> Serialize(const Policy& policy) {
   return Result<std::vector<uint8_t>>::Success(std::move(buffer));
 }
 
+namespace {
+uint32_t ReadU32(const uint8_t* buffer, size_t offset) {
+  uint32_t val = 0;
+  std::memcpy(&val, buffer + offset, 4);
+  return val;
+}
+
+uint16_t ReadU16(const uint8_t* buffer, size_t offset) {
+  uint16_t val = 0;
+  std::memcpy(&val, buffer + offset, 2);
+  return val;
+}
+
+Result<bool> ParseSeccompEntry(const uint8_t* buffer, size_t offset, uint16_t len, Policy& policy) {
+  if (len < 4) return Result<bool>::Failure("Invalid seccomp entry length");
+  uint32_t const count = ReadU32(buffer, offset);
+  size_t s_offset = offset + 4;
+  for (uint32_t j = 0; j < count; ++j) {
+    if (s_offset >= offset + len) return Result<bool>::Failure("Seccomp count mismatch");
+    const char* const syscall_name = reinterpret_cast<const char*>(buffer + s_offset);
+    
+    // Safety: Ensure null terminator exists within the entry length
+    size_t const max_remaining = (offset + len) - s_offset;
+    const char* const end = static_cast<const char*>(std::memchr(syscall_name, '\0', max_remaining));
+    if (end == nullptr) {
+      return Result<bool>::Failure("Malformed seccomp entry: missing null terminator");
+    }
+    
+    size_t const s_len = end - syscall_name;
+    policy.allowed_syscalls.emplace_back(syscall_name, s_len);
+    s_offset += s_len + 1;
+  }
+  return Result<bool>::Success(true);
+}
+} // namespace
+
 Result<Policy> Deserialize(const uint8_t* buffer, size_t size) {
-  if (size < 12) return Result<Policy>::Failure("Buffer too small for header");
+  constexpr size_t kHeaderSize = 12;
+  if (size < kHeaderSize) return Result<Policy>::Failure("Buffer too small for header");
 
-  auto read_u32 = [&](size_t offset) {
-    uint32_t val;
-    std::memcpy(&val, buffer + offset, 4);
-    return val;
-  };
-
-  auto read_u16 = [&](size_t offset) {
-    uint16_t val;
-    std::memcpy(&val, buffer + offset, 2);
-    return val;
-  };
-
-  if (read_u32(0) != kMagic) {
+  if (ReadU32(buffer, 0) != kMagic) {
     return Result<Policy>::Failure("Invalid magic");
   }
 
-  if (read_u32(4) != kVersion) {
+  if (ReadU32(buffer, 4) != kVersion) {
     return Result<Policy>::Failure("Unsupported version");
   }
 
-  uint32_t entry_count = read_u32(8);
-  size_t offset = 12;
-
+  uint32_t const entry_count = ReadU32(buffer, 8);
   Policy policy;
+
+  size_t offset = kHeaderSize;
   for (uint32_t i = 0; i < entry_count; ++i) {
     if (offset + 4 > size) return Result<Policy>::Failure("Unexpected EOF");
 
-    uint16_t tag = read_u16(offset);
-    uint16_t len = read_u16(offset + 2);
+    uint16_t const tag = ReadU16(buffer, offset);
+    uint16_t const len = ReadU16(buffer, offset + 2);
     offset += 4;
 
     if (offset + len > size) return Result<Policy>::Failure("Entry length exceeds buffer");
 
     if (tag == static_cast<uint16_t>(Tag::kNamespaces)) {
       if (len != 4) return Result<Policy>::Failure("Invalid namespace entry length");
-      policy.namespaces = read_u32(offset);
+      policy.namespaces = ReadU32(buffer, offset);
     } else if (tag == static_cast<uint16_t>(Tag::kSeccomp)) {
-      if (len < 4) return Result<Policy>::Failure("Invalid seccomp entry length");
-      uint32_t count = read_u32(offset);
-      size_t s_offset = offset + 4;
-      for (uint32_t j = 0; j < count; ++j) {
-        if (s_offset >= offset + len) return Result<Policy>::Failure("Seccomp count mismatch");
-        const char* s = reinterpret_cast<const char*>(buffer + s_offset);
-        size_t s_len = std::strlen(s);
-        policy.allowed_syscalls.emplace_back(s, s_len);
-        s_offset += s_len + 1;
-      }
+      auto res = ParseSeccompEntry(buffer, offset, len, policy);
+      if (!res.success) return Result<Policy>::Failure(res.error_message);
     }
     offset += len;
   }
@@ -199,5 +225,4 @@ Result<Policy> Deserialize(const uint8_t* buffer, size_t size) {
   return Result<Policy>::Success(std::move(policy));
 }
 
-}  // namespace policy
-}  // namespace sacre
+} // namespace sacre::policy

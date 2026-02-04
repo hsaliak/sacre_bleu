@@ -3,13 +3,11 @@
 #include <sys/syscall.h>
 
 int main() {
-    std::cout << "Testing sacre-loader..." << std::endl;
+    std::cout << "Testing sacre-loader...\n";
+    std::cout << "My PID is: " << getpid() << "\n";
     
-    std::cout << "My PID is: " << getpid() << std::endl;
+    // Test a syscall
+    syscall(SYS_getpid);
     
-    // Try to call getpid via syscall
-    long pid = syscall(SYS_getpid);
-    std::cout << "Syscall getpid returned: " << pid << std::endl;
-
     return 0;
 }
