@@ -1,5 +1,6 @@
 # SacreBleu Suite
-System Audit & Contextual Restriction Engine & Binary Logic Enforcer Utility (made up acronym for the name)
+System Audit & Contextual Restriction Engine & Binary Logic Enforcer Utility (made up acronym for the name).
+
 SacreBleu is made of 3 tools that help you pack your security policy into the headers of elf binaries in Linux. This means that you can set fine grained security policies (syscall whitelists and filesystem restrictions via Landlock) and inject them directly into ELF binaries, and enforce them at runtime. This is useful for shipping "sane defaults" for your tool. Currently, it supports directory/file access permissions through landlock, and syscall allowlists. It's an experiment in bundling reasonable security policies for applications, so that they are well behaved. 
 
 ## Core Components
