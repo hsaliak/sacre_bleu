@@ -27,6 +27,7 @@ The **Enforcer** is the runtime component that launches the hardened binary.
 * It's an experiment. To see if I can automatically ship code with sane defaults.
 * Sometimes it's hard to set a one size fits all for every binary, being able to pack the policy into the binary is convenient
 * With so much AI coded tools, it's hard to ensure the stuff you release to the wild does not have unintended consequences. Bundling a restrictive policy can help developers "use what they need" in terms of permissions.
+* This is pretty useful for a coding agent, like [std::slop](https://github.com/hsaliak/std_slop) or something else. You generate a binary, ask it to generate policies based on tests/runs, coalesce them, and embed it into your generated binary, along with the .ini file. Others can then load it.
 * In the future, the loader need not be a separate executable. LSM and BPF can likely be used to do this in kernel?
 
 ## Getting Started
