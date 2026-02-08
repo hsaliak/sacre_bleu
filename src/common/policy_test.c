@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <stdlib.h>
 #include "src/common/policy.h"
+#include "src/common/raii.h"
 
 void test_ini_parsing(void) { // NOLINT(readability-function-cognitive-complexity)
     printf("Testing INI parsing...\n");
     const char *ini = "[seccomp]\nallow = read, write, exit\n\n[landlock]\nro = /usr, /lib\nrw = /tmp";
-    sacre_policy_t policy;
+    autopolicy sacre_policy_t policy = {0};
     sacre_status_t status = sacre_policy_parse_ini(ini, &policy);
     assert(status == SACRE_OK);
     
@@ -22,13 +24,12 @@ void test_ini_parsing(void) { // NOLINT(readability-function-cognitive-complexit
     assert(policy.rw_paths_count == 1);
     assert(strcmp(policy.rw_paths[0], "/tmp") == 0);
     
-    sacre_policy_free(&policy);
     printf("INI parsing test passed.\n");
 }
 
 void test_serialization_roundtrip(void) { // NOLINT(readability-function-cognitive-complexity)
     printf("Testing serialization roundtrip...\n");
-    sacre_policy_t policy = {0};
+    autopolicy sacre_policy_t policy = {0};
     policy.allowed_syscalls_count = 2;
     policy.allowed_syscalls = (char**)malloc(sizeof(char*) * 2);
     policy.allowed_syscalls[0] = strdup("read");
@@ -38,14 +39,14 @@ void test_serialization_roundtrip(void) { // NOLINT(readability-function-cogniti
     policy.ro_paths = (char**)malloc(sizeof(char*));
     policy.ro_paths[0] = strdup("/etc");
     
-    uint8_t *buffer = NULL;
+    autofree uint8_t *buffer = NULL;
     size_t size = 0;
     sacre_status_t status = sacre_policy_serialize(&policy, &buffer, &size);
     assert(status == SACRE_OK);
     assert(buffer != NULL);
     assert(size > 0);
     
-    sacre_policy_t restored = {0};
+    autopolicy sacre_policy_t restored = {0};
     status = sacre_policy_deserialize(buffer, size, &restored);
     assert(status == SACRE_OK);
     
@@ -56,9 +57,6 @@ void test_serialization_roundtrip(void) { // NOLINT(readability-function-cogniti
     assert(strcmp(restored.ro_paths[0], "/etc") == 0);
     assert(restored.rw_paths_count == 0);
     
-    sacre_policy_free(&policy);
-    sacre_policy_free(&restored);
-    free(buffer);
     printf("Serialization roundtrip test passed.\n");
 }
 
