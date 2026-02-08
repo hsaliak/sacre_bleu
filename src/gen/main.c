@@ -1,4 +1,3 @@
-#define _GNU_SOURCE // NOLINT(bugprone-reserved-identifier)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

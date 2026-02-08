@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(SacreProject LANGUAGES CXX C)
+project(SacreProject LANGUAGES C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -14,16 +14,17 @@ endif()
 # Clang-Tidy Integration
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
 if(CLANG_TIDY_EXE)
-  set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
   set(CMAKE_C_CLANG_TIDY "${CLANG_TIDY_EXE}")
 else()
   message(WARNING "clang-tidy not found")
 endif()
 
 # Standard
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)
+
+add_definitions(-D_GNU_SOURCE)
 
 include(GNUInstallDirs)
 
@@ -127,7 +128,7 @@ add_test(NAME integration_test_gen
          $<TARGET_FILE:minimal_target>)
 #
 # Test Target
-add_executable(test_target src/test_target.cpp)
+add_executable(test_target src/test_target.c)
 target_link_options(test_target PRIVATE -static)
 
 add_executable(minimal_target src/minimal_target.c)
@@ -143,9 +144,8 @@ target_link_options(violation_target PRIVATE -static -nostdlib)
 # Helper target to run clang-tidy --fix on all files
 if(CLANG_TIDY_EXE)
   file(GLOB_RECURSE ALL_SOURCE_FILES 
-       "src/*.cpp" 
-       "src/*.h"
-       "src/*.c")
+       "src/*.c" 
+       "src/*.h")
   
   add_custom_target(fix-style
     COMMAND ${CLANG_TIDY_EXE} -p ${CMAKE_BINARY_DIR} --fix-errors ${ALL_SOURCE_FILES}
