@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <sys/mman.h>
 
 /**
@@ -57,6 +58,14 @@ static inline void sacre_autounlink(char **path) {
     }
 }
 
+static inline void sacre_autofclose(FILE **f) {
+    if (f && *f) {
+        fclose(*f);
+        *f = NULL;
+    }
+}
+
 #define autounlink __attribute__((cleanup(sacre_autounlink)))
+#define autofclose __attribute__((cleanup(sacre_autofclose)))
 
 #endif // SACRE_COMMON_RAII_H_
