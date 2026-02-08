@@ -7,6 +7,8 @@
 #include <sys/wait.h>
 #include <seccomp.h>
 #include <errno.h>
+#include <getopt.h>
+#include <ctype.h>
 
 #include "src/common/policy.h"
 #include "src/common/raii.h"
@@ -134,31 +136,100 @@ static void trace_process(pid_t pid, syscall_set_t *syscalls) {
 }
 
 static void write_policy(const char *path, const char *target_path, const syscall_set_t *syscalls) { // NOLINT(bugprone-easily-swappable-parameters)
+    autopolicy sacre_policy_t policy = {0};
+    
+    // Default RO paths
+    (void)sacre_policy_add_ro_path(&policy, "/usr/lib");
+    (void)sacre_policy_add_ro_path(&policy, "/lib64");
+    (void)sacre_policy_add_ro_path(&policy, "/etc/ld.so.cache");
+    (void)sacre_policy_add_ro_path(&policy, "/lib/x86_64-linux-gnu");
+    (void)sacre_policy_add_ro_path(&policy, target_path);
+
+    for (size_t i = 0; i < syscalls->count; ++i) {
+        (void)sacre_policy_add_syscall(&policy, syscalls->names[i]);
+    }
+
     autofclose FILE *out = fopen(path, "w");
     if (!out) {
         perror("fopen");
         return;
     }
 
-    fprintf(out, "[landlock]\n");
-    fprintf(out, "# Suggested read-only paths for basic execution\n");
-    fprintf(out, "ro = /usr/lib, /lib64, /etc/ld.so.cache, /lib/x86_64-linux-gnu, %s\n", target_path);
-    fprintf(out, "# rw = /tmp\n\n");
+    (void)sacre_policy_write_ini(out, &policy);
+}
 
-    fprintf(out, "[seccomp]\n");
-    fprintf(out, "# The following critical syscalls are ALWAYS allowed by the loader and cannot be overridden.\n");
-    fprintf(out, "allow = ");
-
-    bool first = true;
-    for (size_t i = 0; i < syscalls->count; ++i) {
-        if (!first) fprintf(out, ", ");
-        fprintf(out, "%s", syscalls->names[i]);
-        first = false;
+static int do_merge(int argc, char **argv) {
+    const char *output_path = NULL;
+    int opt = 0;
+    // We need to reset optind if we use getopt multiple times, but here it's fine as it's the first time.
+    while ((opt = getopt(argc, argv, "o:")) != -1) {
+        switch (opt) {
+            case 'o':
+                output_path = optarg;
+                break;
+            default:
+                return 1;
+        }
     }
-    fprintf(out, "\n");
+
+    if (!output_path || optind >= argc) {
+        fprintf(stderr, "Usage: %s merge -o <output_ini> <input1.ini> <input2.ini> ...\n", argv[0]);
+        return 1;
+    }
+
+    autopolicy sacre_policy_t master_policy = {0};
+    for (int i = optind; i < argc; ++i) {
+        autofclose FILE *f = fopen(argv[i], "r");
+        if (!f) {
+            fprintf(stderr, "Failed to open input: %s\n", argv[i]);
+            perror("fopen");
+            return 1;
+        }
+        fseek(f, 0, SEEK_END);
+        long fsize = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        autofree char *content = malloc((size_t)fsize + 1);
+        if (!content) return 1;
+        if (fread(content, 1, (size_t)fsize, f) != (size_t)fsize) return 1;
+        content[fsize] = 0;
+        
+        autopolicy sacre_policy_t p = {0};
+        if (sacre_policy_parse_ini(content, &p) != SACRE_OK) {
+            fprintf(stderr, "Failed to parse %s\n", argv[i]);
+            return 1;
+        }
+        
+        if (sacre_policy_merge(&master_policy, &p) != SACRE_OK) {
+            fprintf(stderr, "Failed to merge %s\n", argv[i]);
+            return 1;
+        }
+    }
+
+    autofclose FILE *out = fopen(output_path, "w");
+    if (!out) {
+        perror("fopen");
+        return 1;
+    }
+    if (sacre_policy_write_ini(out, &master_policy) != SACRE_OK) {
+        fprintf(stderr, "Failed to write merged policy\n");
+        return 1;
+    }
+
+    printf("Successfully merged %d policies into %s\n", argc - optind, output_path);
+    return 0;
 }
 
 int main(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <output_ini> <target_binary> [args...]\n", argv[0]);
+        fprintf(stderr, "       %s merge -o <output_ini> <input1.ini> <input2.ini> ...\n", argv[0]);
+        return 1;
+    }
+
+    if (strcmp(argv[1], "merge") == 0) {
+        return do_merge(argc - 1, argv + 1);
+    }
+
     if (argc < 3) {
         fprintf(stderr, "Usage: %s <output_ini> <target_binary> [args...]\n", argv[0]);
         return 1;

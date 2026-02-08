@@ -34,19 +34,34 @@ typedef enum {
     TAG_LANDLOCK_RW = 4,
 } tag_t;
 
+sacre_status_t sacre_policy_add_syscall(sacre_policy_t *policy, const char *name) {
+    if (!policy || !name) return SACRE_ERR_INVALID_ARGS;
+    return append_unique(&policy->allowed_syscalls, &policy->allowed_syscalls_count, name);
+}
+
+sacre_status_t sacre_policy_add_ro_path(sacre_policy_t *policy, const char *path) {
+    if (!policy || !path) return SACRE_ERR_INVALID_ARGS;
+    return append_unique(&policy->ro_paths, &policy->ro_paths_count, path);
+}
+
+sacre_status_t sacre_policy_add_rw_path(sacre_policy_t *policy, const char *path) {
+    if (!policy || !path) return SACRE_ERR_INVALID_ARGS;
+    return append_unique(&policy->rw_paths, &policy->rw_paths_count, path);
+}
+
 sacre_status_t sacre_policy_merge(sacre_policy_t *dest, const sacre_policy_t *src) {
     if (!dest || !src) return SACRE_ERR_INVALID_ARGS;
     
     for (size_t i = 0; i < src->allowed_syscalls_count; ++i) {
-        sacre_status_t s = append_unique(&dest->allowed_syscalls, &dest->allowed_syscalls_count, src->allowed_syscalls[i]);
+        sacre_status_t s = sacre_policy_add_syscall(dest, src->allowed_syscalls[i]);
         if (s != SACRE_OK) return s;
     }
     for (size_t i = 0; i < src->ro_paths_count; ++i) {
-        sacre_status_t s = append_unique(&dest->ro_paths, &dest->ro_paths_count, src->ro_paths[i]);
+        sacre_status_t s = sacre_policy_add_ro_path(dest, src->ro_paths[i]);
         if (s != SACRE_OK) return s;
     }
     for (size_t i = 0; i < src->rw_paths_count; ++i) {
-        sacre_status_t s = append_unique(&dest->rw_paths, &dest->rw_paths_count, src->rw_paths[i]);
+        sacre_status_t s = sacre_policy_add_rw_path(dest, src->rw_paths[i]);
         if (s != SACRE_OK) return s;
     }
     return SACRE_OK;

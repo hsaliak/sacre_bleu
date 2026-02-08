@@ -53,6 +53,13 @@ sacre_status_t sacre_policy_deserialize(const uint8_t *buffer, size_t size, sacr
 sacre_status_t sacre_policy_merge(sacre_policy_t *dest, const sacre_policy_t *src);
 
 /**
+ * Add entries to the policy. Handles duplicates automatically.
+ */
+sacre_status_t sacre_policy_add_syscall(sacre_policy_t *policy, const char *name);
+sacre_status_t sacre_policy_add_ro_path(sacre_policy_t *policy, const char *path);
+sacre_status_t sacre_policy_add_rw_path(sacre_policy_t *policy, const char *path);
+
+/**
  * Writes the policy as an INI formatted string to the provided stream.
  */
 sacre_status_t sacre_policy_write_ini(FILE *out, const sacre_policy_t *policy);
