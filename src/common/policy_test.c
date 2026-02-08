@@ -2,6 +2,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "src/common/policy.h"
 #include "src/common/raii.h"
 
@@ -72,10 +73,62 @@ void test_raii_cleanup(void) { // NOLINT(readability-function-cognitive-complexi
     printf("RAII cleanup test completed.\n");
 }
 
+void test_policy_merge(void) { // NOLINT(readability-function-cognitive-complexity)
+    printf("Testing policy merge...\n");
+    autopolicy sacre_policy_t p1 = {0};
+    sacre_policy_add_syscall(&p1, "read");
+    sacre_policy_add_ro_path(&p1, "/usr");
+
+    autopolicy sacre_policy_t p2 = {0};
+    sacre_policy_add_syscall(&p2, "write");
+    sacre_policy_add_syscall(&p2, "read"); // duplicate
+    sacre_policy_add_rw_path(&p2, "/tmp");
+
+    sacre_status_t status = sacre_policy_merge(&p1, &p2);
+    assert(status == SACRE_OK);
+
+    assert(p1.allowed_syscalls_count == 2);
+    assert(p1.ro_paths_count == 1);
+    assert(p1.rw_paths_count == 1);
+
+    printf("Policy merge test passed.\n");
+}
+
+void test_policy_write_ini(void) { // NOLINT(readability-function-cognitive-complexity)
+    printf("Testing policy write INI...\n");
+    autopolicy sacre_policy_t p = {0};
+    sacre_policy_add_syscall(&p, "read");
+    sacre_policy_add_ro_path(&p, "/etc");
+
+    char temp_path[] = "/tmp/sacre_test_XXXXXX";
+    int fd = mkstemp(temp_path);
+    assert(fd != -1);
+    autofclose FILE *f = fdopen(fd, "w+");
+    assert(f != NULL);
+
+    sacre_status_t status = sacre_policy_write_ini(f, &p);
+    assert(status == SACRE_OK);
+
+    (void)fseek(f, 0, SEEK_SET);
+    char buf[1024];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    buf[n] = 0;
+
+    assert(strstr(buf, "[seccomp]") != NULL);
+    assert(strstr(buf, "allow = read") != NULL);
+    assert(strstr(buf, "[landlock]") != NULL);
+    assert(strstr(buf, "ro = /etc") != NULL);
+
+    unlink(temp_path);
+    printf("Policy write INI test passed.\n");
+}
+
 int main(void) {
     test_ini_parsing();
     test_serialization_roundtrip();
     test_raii_cleanup();
+    test_policy_merge();
+    test_policy_write_ini();
     printf("All policy tests passed.\n");
     return 0;
 }
