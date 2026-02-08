@@ -8,9 +8,16 @@
 namespace sacre::inject {
 
 struct Args {
+  // Inject mode
   std::string ini_path;
   std::string source_path;
   std::string target_path;
+
+  // Extract mode
+  bool extract_mode = false;
+  std::string elf_path;
+  std::string output_path;
+
   bool show_help = false;
 };
 

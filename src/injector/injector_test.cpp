@@ -34,7 +34,7 @@ void TestParseArgsInvalid() {
   const char* argv[] = {"injector", "too", "many", "positional", "args"};
   auto result = ParseArgs(5, const_cast<char**>(argv));
   assert(!result.success);
-  assert(std::strcmp(result.error_message, "Wrong number of arguments") == 0);
+  assert(std::strcmp(result.error_message, "Injection mode requires 3 arguments") == 0);
 
   const char* argv2[] = {"injector", "--unknown"};
   auto result2 = ParseArgs(2, const_cast<char**>(argv2));

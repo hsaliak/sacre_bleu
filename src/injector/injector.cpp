@@ -47,6 +47,10 @@ Result<Args> ParseArgs(int argc, char** argv) {
       args.show_help = true;
       return Result<Args>::Success(args);
     }
+    if (arg == "--extract" || arg == "-e") {
+      args.extract_mode = true;
+      continue;
+    }
     if (arg.empty()) {
       continue;
     }
@@ -56,8 +60,19 @@ Result<Args> ParseArgs(int argc, char** argv) {
     positional.push_back(arg);
   }
 
+  if (args.extract_mode) {
+    if (positional.empty() || positional.size() > 2) {
+      return Result<Args>::Failure("Extract mode requires 1 or 2 arguments");
+    }
+    args.elf_path = positional[0];
+    if (positional.size() == 2) {
+      args.output_path = positional[1];
+    }
+    return Result<Args>::Success(args);
+  }
+
   if (positional.size() != 3) {
-    return Result<Args>::Failure("Wrong number of arguments");
+    return Result<Args>::Failure("Injection mode requires 3 arguments");
   }
 
   args.ini_path = positional[0];
