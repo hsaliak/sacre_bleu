@@ -1,7 +1,7 @@
-# SB Sandbox Suite
-**S**ecure **B**inary Sandbox: A suite of tools to embed and enforce security policies directly within ELF binaries.
+# SacreBleu (SB) Sandbox Suite
+**S**ystem **A**udit & **C**ontextual **R**estriction **E**ngine - **B**inary **L**ogic **E**nforcer **U**tility.
 
-SB Sandbox is composed of three primary tools that allow you to define, inject, and enforce fine-grained security policies (Seccomp syscall allowlists and Landlock filesystem restrictions) directly into Linux executables. This means that you can set fine grained security policies (syscall whitelists and filesystem restrictions via Landlock) and inject them directly into ELF binaries, and enforce them at runtime. This is useful for shipping "sane defaults" for your tool. Currently, it supports directory/file access permissions through landlock, and syscall allowlists. It's an experiment in bundling reasonable security policies for applications, so that they are well behaved. 
+SacreBleu is composed of three primary tools that allow you to define, inject, and enforce fine-grained security policies (Seccomp syscall allowlists and Landlock filesystem restrictions) directly into Linux executables. This means that you can set fine grained security policies (syscall whitelists and filesystem restrictions via Landlock) and inject them directly into ELF binaries, and enforce them at runtime. This is useful for shipping "sane defaults" for your tool. Currently, it supports directory/file access permissions through landlock, and syscall allowlists. It's an experiment in bundling reasonable security policies for applications, so that they are well behaved. 
 
 ## Core Components
 
