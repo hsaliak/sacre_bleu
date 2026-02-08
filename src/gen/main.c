@@ -146,20 +146,8 @@ static void write_policy(const char *path, const char *target_path, const syscal
     fprintf(out, "# The following critical syscalls are ALWAYS allowed by the loader and cannot be overridden.\n");
     fprintf(out, "allow = ");
 
-    size_t crit_count = 0;
-    const char **crit_syscalls = sacre_policy_get_critical_syscalls(&crit_count);
-
     bool first = true;
     for (size_t i = 0; i < syscalls->count; ++i) {
-        bool is_critical = false;
-        for (size_t j = 0; j < crit_count; ++j) {
-            if (strcmp(syscalls->names[i], crit_syscalls[j]) == 0) {
-                is_critical = true;
-                break;
-            }
-        }
-        if (is_critical) continue;
-
         if (!first) fprintf(out, ", ");
         fprintf(out, "%s", syscalls->names[i]);
         first = false;
