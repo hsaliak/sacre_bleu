@@ -37,9 +37,15 @@ static void add_to_list(char*** list, size_t* count, const char* val) {
             while (end > token && isspace((unsigned char)*end)) end--;
             end[1] = '\0';
             if (*token) {
-                *list = (char**)realloc((void*)*list, sizeof(char*) * (*count + 1));
-                (*list)[*count] = strdup(token);
-                (*count)++;
+                char **new_list = (char**)realloc((void*)*list, sizeof(char*) * (*count + 1));
+                if (new_list) {
+                    *list = new_list;
+                    char *new_token = strdup(token);
+                    if (new_token) {
+                        (*list)[*count] = new_token;
+                        (*count)++;
+                    }
+                }
             }
         }
         token = strtok_r(NULL, ",", &saveptr);
@@ -176,7 +182,8 @@ sacre_status_t sacre_policy_deserialize(const uint8_t *buffer, size_t size, sacr
         else if (tag == TAG_LANDLOCK_RW) { list = &out_policy->rw_paths; pcount = &out_policy->rw_paths_count; }
         else { offset += len - 4; continue; }
 
-        *list = (char**)malloc(sizeof(char*) * count);
+        *list = (char**)calloc(count, sizeof(char*));
+        if (!*list) return SACRE_ERR_MALLOC;
         *pcount = count;
         for (uint32_t j = 0; j < count; ++j) {
             const char* s = (const char*)(buffer + offset);
