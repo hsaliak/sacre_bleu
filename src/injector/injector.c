@@ -58,13 +58,13 @@ static sacre_status_t run_injection(const sacre_inject_args_t *args) {
     status = sacre_policy_serialize(&policy, &buffer, &size);
     if (status != SACRE_OK) return status;
     
-    char blob_path[] = "/tmp/sacre_blobXXXXXX";
-    int fd = mkstemp(blob_path);
+    char blob_template[] = "/tmp/sacre_blobXXXXXX";
+    int fd = mkstemp(blob_template);
     if (fd < 0) return SACRE_ERR_IO;
     autoclose int fd_guard = fd;
+    autounlink char *blob_path = strdup(blob_template);
     
     if (write(fd, buffer, size) != (ssize_t)size) {
-        unlink(blob_path);
         return SACRE_ERR_IO;
     }
     close(fd); fd_guard = -1; 
@@ -77,39 +77,39 @@ static sacre_status_t run_injection(const sacre_inject_args_t *args) {
     char *const add_argv[] = {(char*)"objcopy", (char*)"--add-section", add_arg, (char*)args->target_path, NULL};
     bool success = safe_execute(add_argv);
     
-    unlink(blob_path);
     return success ? SACRE_OK : SACRE_ERR_INTERNAL;
 }
 
 static sacre_status_t run_extraction(const sacre_inject_args_t *args) {
-    char dump_path[] = "/tmp/sacre_dumpXXXXXX";
-    int fd = mkstemp(dump_path);
+    char dump_template[] = "/tmp/sacre_dumpXXXXXX";
+    int fd = mkstemp(dump_template);
     if (fd < 0) return SACRE_ERR_IO;
     autoclose int fd_guard = fd;
+    autounlink char *dump_path = strdup(dump_template);
     close(fd); fd_guard = -1;
     
     char dump_arg[512];
     (void)snprintf(dump_arg, sizeof(dump_arg), ".sandbox=%s", dump_path);
     char *const dump_argv[] = {(char*)"objcopy", (char*)"--dump-section", dump_arg, (char*)args->elf_path, NULL};
     if (!safe_execute(dump_argv)) {
-        (void)unlink(dump_path);
         return SACRE_ERR_INTERNAL;
     }
     
     autofree uint8_t *buffer = NULL;
     size_t size = 0;
     sacre_status_t status = read_file(dump_path, (char**)&buffer, &size);
-    unlink(dump_path);
     if (status != SACRE_OK) return status;
     
     autopolicy sacre_policy_t policy = {0};
     status = sacre_policy_deserialize(buffer, size, &policy);
     if (status != SACRE_OK) return status;
     
+    autofclose FILE *out_guard = NULL;
     FILE *out = stdout;
     if (args->output_path) {
-        out = fopen(args->output_path, "w");
-        if (!out) return SACRE_ERR_IO;
+        out_guard = fopen(args->output_path, "w");
+        if (!out_guard) return SACRE_ERR_IO;
+        out = out_guard;
     }
     
     (void)fprintf(out, "[seccomp]\nallow = ");
@@ -126,7 +126,6 @@ static sacre_status_t run_extraction(const sacre_inject_args_t *args) {
     }
     (void)fprintf(out, "\n");
     
-    if (args->output_path) fclose(out);
     return SACRE_OK;
 }
 
