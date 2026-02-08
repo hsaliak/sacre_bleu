@@ -24,6 +24,7 @@ struct Args {
 Result<Args> ParseArgs(int argc, char** argv);
 
 Result<bool> RunInjection(const Args& args);
+Result<bool> RunExtraction(const Args& args);
 
 } // namespace sacre::inject
 

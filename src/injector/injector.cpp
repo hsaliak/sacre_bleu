@@ -1,18 +1,18 @@
 #include "src/injector/injector.h"
 
 #include <array>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include <cstring>
-#include <unistd.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
-#include "src/common/policy.h"
 #include "src/common/file_closer.h"
+#include "src/common/policy.h"
 
 namespace sacre::inject {
 
@@ -128,6 +128,89 @@ Result<bool> RunInjection(const Args& args) {
 
   if (!success) {
     return Result<bool>::Failure("objcopy failed");
+  }
+
+  return Result<bool>::Success(true);
+}
+
+Result<bool> RunExtraction(const Args& args) {
+  // 1. Create a temporary file for the dumped section
+  constexpr size_t kDumpPathSize = 24;
+  std::array<char, kDumpPathSize> dump_path = {"/tmp/sacre_dumpXXXXXX"};
+  int const fd = mkstemp(dump_path.data());
+  if (fd == -1) {
+    return Result<bool>::Failure("Failed to create temporary file for dumping");
+  }
+  close(fd);
+
+  // 2. Call objcopy to dump section
+  bool const success = SafeExecute({"objcopy", "--dump-section", 
+                                   ".sandbox=" + std::string(dump_path.data()), 
+                                   args.elf_path});
+  
+  if (!success) {
+    unlink(dump_path.data());
+    return Result<bool>::Failure("Failed to extract .sandbox section (it might not exist)");
+  }
+
+  // Check if file exists and is not empty
+  std::ifstream dump_file(dump_path.data(), std::ios::binary | std::ios::ate);
+  if (!dump_file.is_open()) {
+    unlink(dump_path.data());
+    return Result<bool>::Failure("Failed to open dumped section");
+  }
+  
+  std::streamsize const size = dump_file.tellg();
+  if (size <= 0) {
+    unlink(dump_path.data());
+    return Result<bool>::Failure("No policy found in .sandbox section (section is empty)");
+  }
+
+  dump_file.seekg(0, std::ios::beg);
+  std::vector<uint8_t> buffer(size);
+  if (!dump_file.read(reinterpret_cast<char*>(buffer.data()), size)) {
+    unlink(dump_path.data());
+    return Result<bool>::Failure("Failed to read dumped section");
+  }
+  unlink(dump_path.data());
+
+  // 3. Deserialize
+  auto deserialize_result = sacre::policy::Deserialize(buffer.data(), buffer.size());
+  if (!deserialize_result.success) {
+    return Result<bool>::Failure("Failed to deserialize policy");
+  }
+
+  // 4. Convert to INI format and write to output or stdout
+  std::stringstream ss;
+  const auto& policy = deserialize_result.value;
+  
+  ss << "[seccomp]\n";
+  ss << "allow = ";
+  for (size_t i = 0; i < policy.allowed_syscalls.size(); ++i) {
+    ss << policy.allowed_syscalls[i] << (i == policy.allowed_syscalls.size() - 1 ? "" : ", ");
+  }
+  ss << "\n\n";
+
+  ss << "[landlock]\n";
+  ss << "ro = ";
+  for (size_t i = 0; i < policy.ro_paths.size(); ++i) {
+    ss << policy.ro_paths[i] << (i == policy.ro_paths.size() - 1 ? "" : ", ");
+  }
+  ss << "\n";
+  ss << "rw = ";
+  for (size_t i = 0; i < policy.rw_paths.size(); ++i) {
+    ss << policy.rw_paths[i] << (i == policy.rw_paths.size() - 1 ? "" : ", ");
+  }
+  ss << "\n";
+
+  if (args.output_path.empty()) {
+    std::cout << ss.str();
+  } else {
+    std::ofstream out_file(args.output_path);
+    if (!out_file.is_open()) {
+      return Result<bool>::Failure("Could not open output file");
+    }
+    out_file << ss.str();
   }
 
   return Result<bool>::Success(true);
