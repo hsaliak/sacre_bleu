@@ -4,6 +4,25 @@
 #include <stdio.h>
 #include <ctype.h>
 
+static bool list_contains(char **list, size_t count, const char *item) {
+    for (size_t i = 0; i < count; ++i) {
+        if (strcmp(list[i], item) == 0) return true;
+    }
+    return false;
+}
+
+static sacre_status_t append_unique(char ***list, size_t *count, const char *item) {
+    if (list_contains(*list, *count, item)) return SACRE_OK;
+    char **new_list = (char**)realloc((void*)*list, sizeof(char*) * (*count + 1));
+    if (!new_list) return SACRE_ERR_MALLOC;
+    *list = new_list;
+    char *new_token = strdup(item);
+    if (!new_token) return SACRE_ERR_MALLOC;
+    (*list)[*count] = new_token;
+    (*count)++;
+    return SACRE_OK;
+}
+
 enum {
     MAGIC = 0x00524353,
     VERSION = 1,
@@ -14,6 +33,51 @@ typedef enum {
     TAG_LANDLOCK_RO = 3,
     TAG_LANDLOCK_RW = 4,
 } tag_t;
+
+sacre_status_t sacre_policy_merge(sacre_policy_t *dest, const sacre_policy_t *src) {
+    if (!dest || !src) return SACRE_ERR_INVALID_ARGS;
+    
+    for (size_t i = 0; i < src->allowed_syscalls_count; ++i) {
+        sacre_status_t s = append_unique(&dest->allowed_syscalls, &dest->allowed_syscalls_count, src->allowed_syscalls[i]);
+        if (s != SACRE_OK) return s;
+    }
+    for (size_t i = 0; i < src->ro_paths_count; ++i) {
+        sacre_status_t s = append_unique(&dest->ro_paths, &dest->ro_paths_count, src->ro_paths[i]);
+        if (s != SACRE_OK) return s;
+    }
+    for (size_t i = 0; i < src->rw_paths_count; ++i) {
+        sacre_status_t s = append_unique(&dest->rw_paths, &dest->rw_paths_count, src->rw_paths[i]);
+        if (s != SACRE_OK) return s;
+    }
+    return SACRE_OK;
+}
+
+static void write_list_ini(FILE *out, const char *key, char **list, size_t count) {
+    if (count == 0) return;
+    fprintf(out, "%s = ", key);
+    for (size_t i = 0; i < count; ++i) {
+        fprintf(out, "%s%s", list[i], (i == count - 1) ? "" : ", ");
+    }
+    fprintf(out, "\n");
+}
+
+sacre_status_t sacre_policy_write_ini(FILE *out, const sacre_policy_t *policy) {
+    if (!out || !policy) return SACRE_ERR_INVALID_ARGS;
+    
+    if (policy->allowed_syscalls_count > 0) {
+        fprintf(out, "[seccomp]\n");
+        write_list_ini(out, "allow", policy->allowed_syscalls, policy->allowed_syscalls_count);
+        fprintf(out, "\n");
+    }
+    
+    if (policy->ro_paths_count > 0 || policy->rw_paths_count > 0) {
+        fprintf(out, "[landlock]\n");
+        write_list_ini(out, "ro", policy->ro_paths, policy->ro_paths_count);
+        write_list_ini(out, "rw", policy->rw_paths, policy->rw_paths_count);
+    }
+    
+    return SACRE_OK;
+}
 
 void sacre_policy_free(sacre_policy_t *policy) {
     if (!policy) return;
@@ -27,6 +91,7 @@ void sacre_policy_free(sacre_policy_t *policy) {
 }
 
 static void add_to_list(char*** list, size_t* count, const char* val) {
+    if (!val) return;
     autofree char* v = strdup(val);
     char* saveptr = NULL;
     char* token = strtok_r(v, ",", &saveptr);
@@ -37,15 +102,7 @@ static void add_to_list(char*** list, size_t* count, const char* val) {
             while (end > token && isspace((unsigned char)*end)) end--;
             end[1] = '\0';
             if (*token) {
-                char **new_list = (char**)realloc((void*)*list, sizeof(char*) * (*count + 1));
-                if (new_list) {
-                    *list = new_list;
-                    char *new_token = strdup(token);
-                    if (new_token) {
-                        (*list)[*count] = new_token;
-                        (*count)++;
-                    }
-                }
+                (void)append_unique(list, count, token);
             }
         }
         token = strtok_r(NULL, ",", &saveptr);

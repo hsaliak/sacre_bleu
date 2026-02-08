@@ -47,6 +47,17 @@ sacre_status_t sacre_policy_serialize(const sacre_policy_t *policy, uint8_t **ou
 sacre_status_t sacre_policy_deserialize(const uint8_t *buffer, size_t size, sacre_policy_t *out_policy);
 
 /**
+ * Merges src policy into dest policy.
+ * New entries are added if not already present.
+ */
+sacre_status_t sacre_policy_merge(sacre_policy_t *dest, const sacre_policy_t *src);
+
+/**
+ * Writes the policy as an INI formatted string to the provided stream.
+ */
+sacre_status_t sacre_policy_write_ini(FILE *out, const sacre_policy_t *policy);
+
+/**
  * Returns a static list of critical syscalls.
  * The strings are NOT owned by the caller.
  */
