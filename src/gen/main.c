@@ -33,6 +33,12 @@ static void syscall_set_free(syscall_set_t *set) {
     memset((void*)set, 0, sizeof(*set));
 }
 
+static inline void sacre_autosysset(syscall_set_t *set) {
+    syscall_set_free(set);
+}
+
+#define autosysset __attribute__((cleanup(sacre_autosysset)))
+
 static void syscall_set_add(syscall_set_t *set, const char *name) {
     if (!name) return;
     for (size_t i = 0; i < set->count; ++i) {
@@ -75,10 +81,9 @@ static void handle_ptrace_stop(pid_t pid, int status, syscall_set_t *syscalls) {
     if (sig == (SIGTRAP | 0x80)) {
         long nr = get_syscall_nr(pid);
         if (nr >= 0) {
-            char *name = seccomp_syscall_resolve_num_arch(SCMP_ARCH_NATIVE, (int)nr);
+            autofree char *name = seccomp_syscall_resolve_num_arch(SCMP_ARCH_NATIVE, (int)nr);
             if (name) {
                 syscall_set_add(syscalls, name);
-                free(name);
             }
         }
         (void)ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
@@ -130,7 +135,7 @@ static void trace_process(pid_t pid, syscall_set_t *syscalls) {
 }
 
 static void write_policy(const char *path, const char *target_path, const syscall_set_t *syscalls) { // NOLINT(bugprone-easily-swappable-parameters)
-    FILE *out = fopen(path, "w");
+    autofclose FILE *out = fopen(path, "w");
     if (!out) {
         perror("fopen");
         return;
@@ -152,7 +157,6 @@ static void write_policy(const char *path, const char *target_path, const syscal
         first = false;
     }
     fprintf(out, "\n");
-    fclose(out);
 }
 
 int main(int argc, char **argv) {
@@ -170,14 +174,13 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    syscall_set_t syscalls = {0};
+    autosysset syscall_set_t syscalls = {0};
     if (pid == 0) {
         run_child(target_path, argc, argv);
     } else {
         trace_process(pid, &syscalls);
         write_policy(output_path, target_path, &syscalls);
         printf("Generated policy with %zu syscalls to %s\n", syscalls.count, output_path);
-        syscall_set_free(&syscalls);
     }
 
     return 0;
