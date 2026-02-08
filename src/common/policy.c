@@ -27,7 +27,7 @@ void sacre_policy_free(sacre_policy_t *policy) {
 }
 
 static void add_to_list(char*** list, size_t* count, const char* val) {
-    char* v = strdup(val);
+    autofree char* v = strdup(val);
     char* saveptr = NULL;
     char* token = strtok_r(v, ",", &saveptr);
     while (token) {
@@ -44,7 +44,6 @@ static void add_to_list(char*** list, size_t* count, const char* val) {
         }
         token = strtok_r(NULL, ",", &saveptr);
     }
-    free(v);
 }
 
 static int policy_handler(void* user, const char* section_name, const char* entry_name, const char* entry_value) { // NOLINT(bugprone-easily-swappable-parameters)
