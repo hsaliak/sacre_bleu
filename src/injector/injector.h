@@ -1,32 +1,18 @@
-#ifndef SACRE_INJECT_INJECTOR_H_
-#define SACRE_INJECT_INJECTOR_H_
+#ifndef SACRE_INJECTOR_INJECTOR_H_
+#define SACRE_INJECTOR_INJECTOR_H_
 
-#include <string>
 #include "src/common/result.h"
+#include <stdbool.h>
 
+typedef struct {
+    const char *policy_path;
+    const char *source_path;
+    const char *target_path;
+    const char *elf_path;
+    const char *output_path;
+    bool is_extraction;
+} sacre_inject_args_t;
 
-namespace sacre::inject {
+sacre_status_t sacre_inject_run(const sacre_inject_args_t *args);
 
-struct Args {
-  // Inject mode
-  std::string ini_path;
-  std::string source_path;
-  std::string target_path;
-
-  // Extract mode
-  bool extract_mode = false;
-  std::string elf_path;
-  std::string output_path;
-
-  bool show_help = false;
-};
-
-Result<Args> ParseArgs(int argc, char** argv);
-
-Result<bool> RunInjection(const Args& args);
-Result<bool> RunExtraction(const Args& args);
-
-} // namespace sacre::inject
-
-
-#endif  // SACRE_INJECT_INJECTOR_H_
+#endif // SACRE_INJECTOR_INJECTOR_H_

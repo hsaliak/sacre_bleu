@@ -46,26 +46,33 @@ endif()
 # Include directories - allows #include "src/common/..."
 include_directories(${CMAKE_SOURCE_DIR})
 
+# ASan (enabled for most targets)
+set(ASAN_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-g")
+set(ASAN_LINK_FLAGS "-fsanitize=address" "-fsanitize=undefined")
+
 # Common Library (Policy Parser/Binary Format)
 add_library(sacre-common
-  src/common/policy.cpp
+  src/common/policy.c
+  src/common/ini.c
 )
+target_compile_options(sacre-common PUBLIC ${ASAN_FLAGS})
+target_link_options(sacre-common PUBLIC ${ASAN_LINK_FLAGS})
 
 # Dependencies
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(Seccomp REQUIRED libseccomp)
 
 # Injector
-add_executable(injector src/injector/main.cpp src/injector/injector.cpp)
+add_executable(injector src/injector/main.c src/injector/injector.c)
 target_link_libraries(injector sacre-common)
 
 # Loader
-add_executable(loader src/loader/main.cpp)
+add_executable(loader src/loader/main.c)
 target_include_directories(loader PRIVATE ${Seccomp_INCLUDE_DIRS})
 target_link_libraries(loader sacre-common ${Seccomp_LIBRARIES})
 
 # Generator
-add_executable(gen src/gen/main.cpp)
+add_executable(gen src/gen/main.c)
 target_include_directories(gen PRIVATE ${Seccomp_INCLUDE_DIRS})
 target_link_libraries(gen sacre-common ${Seccomp_LIBRARIES})
 
@@ -77,11 +84,11 @@ install(TARGETS injector loader gen
 enable_testing()
 
 # Unit Tests
-add_executable(policy_test src/common/policy_test.cpp)
+add_executable(policy_test src/common/policy_test.c)
 target_link_libraries(policy_test sacre-common)
 add_test(NAME policy_unit_test COMMAND policy_test)
 
-add_executable(injector_test src/injector/injector_test.cpp src/injector/injector.cpp)
+add_executable(injector_test src/injector/injector_test.c src/injector/injector.c)
 target_link_libraries(injector_test sacre-common)
 add_test(NAME injector_unit_test COMMAND injector_test)
 

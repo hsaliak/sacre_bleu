@@ -1,39 +1,55 @@
 #ifndef SACRE_COMMON_POLICY_H_
 #define SACRE_COMMON_POLICY_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <string>
-#include <string_view>
-#include <vector>
-
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include "src/common/raii.h"
 #include "src/common/result.h"
 
+typedef struct {
+    char **allowed_syscalls;
+    size_t allowed_syscalls_count;
+    char **ro_paths;
+    size_t ro_paths_count;
+    char **rw_paths;
+    size_t rw_paths_count;
+} sacre_policy_t;
 
-namespace sacre::policy {
+/**
+ * Frees all memory associated with a policy.
+ */
+void sacre_policy_free(sacre_policy_t *policy);
 
-template <typename T>
-using Result = sacre::Result<T>;
+/**
+ * RAII cleanup handler for policy.
+ */
+static inline void sacre_autopolicy(sacre_policy_t *policy) {
+    sacre_policy_free(policy);
+}
 
-struct Policy {
-  std::vector<std::string> allowed_syscalls;
-  std::vector<std::string> ro_paths;
-  std::vector<std::string> rw_paths;
-};
+#define autopolicy __attribute__((cleanup(sacre_autopolicy)))
 
-// Parses an INI string into a Policy object.
-Result<Policy> ParseIni(std::string_view ini_content);
+/**
+ * Parses an INI string into a Policy object.
+ */
+sacre_status_t sacre_policy_parse_ini(const char *ini_content, sacre_policy_t *out_policy);
 
-// Serializes a Policy object into a binary blob.
-Result<std::vector<uint8_t>> Serialize(const Policy& policy);
+/**
+ * Serializes a Policy object into a binary blob.
+ * Returns SACRE_OK on success. The caller must free *out_buffer.
+ */
+sacre_status_t sacre_policy_serialize(const sacre_policy_t *policy, uint8_t **out_buffer, size_t *out_size);
 
-// Deserializes a binary blob into a Policy object.
-Result<Policy> Deserialize(const uint8_t* buffer, size_t size);
+/**
+ * Deserializes a binary blob into a Policy object.
+ */
+sacre_status_t sacre_policy_deserialize(const uint8_t *buffer, size_t size, sacre_policy_t *out_policy);
 
-// Returns the list of critical syscalls that are always allowed by the loader.
-const std::vector<std::string>& GetCriticalSyscalls();
+/**
+ * Returns a static list of critical syscalls.
+ * The strings are NOT owned by the caller.
+ */
+const char** sacre_policy_get_critical_syscalls(size_t *out_count);
 
-} // namespace sacre::policy
-
-
-#endif  // SACRE_COMMON_POLICY_H_
+#endif // SACRE_COMMON_POLICY_H_

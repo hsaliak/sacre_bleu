@@ -1,21 +1,15 @@
 #ifndef SACRE_COMMON_RESULT_H_
 #define SACRE_COMMON_RESULT_H_
 
-#include <utility>
+// C version of the status codes.
+typedef enum {
+    SACRE_OK = 0,
+    SACRE_ERR_MALLOC,
+    SACRE_ERR_PARSE,
+    SACRE_ERR_IO,
+    SACRE_ERR_INVALID_ARGS,
+    SACRE_ERR_NOT_FOUND,
+    SACRE_ERR_INTERNAL,
+} sacre_status_t;
 
-namespace sacre {
-
-// Simple result type for error handling without exceptions.
-template <typename T>
-struct Result {
-  T value;
-  bool success = false;
-  const char* error_message = nullptr;
-
-  static Result Success(T val) { return {std::move(val), true, nullptr}; }
-  static Result Failure(const char* msg) { return {T(), false, msg}; }
-};
-
-}  // namespace sacre
-
-#endif  // SACRE_COMMON_RESULT_H_
+#endif // SACRE_COMMON_RESULT_H_
