@@ -1,4 +1,5 @@
 #include "src/common/ini.h"
+#include "src/common/raii.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -13,10 +14,10 @@ static char* trim(char* s) {
 }
 
 int ini_parse_string(const char* string, ini_handler handler, void* user) {
-    char* line = strdup(string);
+    autofree char* line = strdup(string);
     if (!line) return -1;
 
-    char* section = strdup("");
+    autofree char* section = strdup("");
     char* saveptr = NULL;
     char* current_line = strtok_r(line, "\n", &saveptr);
 
@@ -25,9 +26,12 @@ int ini_parse_string(const char* string, ini_handler handler, void* user) {
         if (*l == '\0' || *l == '#' || *l == ';') goto next;
 
         if (*l == '[' && l[strlen(l) - 1] == ']') {
-            free(section);
-            l[strlen(l) - 1] = '\0';
-            section = strdup(l + 1);
+            char* next_section = strdup(l + 1);
+            if (next_section) {
+                free(section);
+                section = next_section;
+                section[strlen(section) - 1] = '\0';
+            }
         } else {
             char* eq = strchr(l, '=');
             if (eq) {
@@ -35,8 +39,6 @@ int ini_parse_string(const char* string, ini_handler handler, void* user) {
                 char* key = trim(l);
                 char* value = trim(eq + 1);
                 if (!handler(user, section, key, value)) {
-                    free(section);
-                    free(line);
                     return -2;
                 }
             }
@@ -46,7 +48,5 @@ int ini_parse_string(const char* string, ini_handler handler, void* user) {
         current_line = strtok_r(NULL, "\n", &saveptr);
     }
 
-    free(section);
-    free(line);
     return 0;
 }
