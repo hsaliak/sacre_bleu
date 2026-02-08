@@ -192,8 +192,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        char **exec_args = (char**)malloc(sizeof(char*) * (size_t)argc);
-        if (!exec_args) _exit(1);
+        char *exec_args[argc];
         for (int i = 1; i < argc; ++i) {
             exec_args[i - 1] = argv[i];
         }

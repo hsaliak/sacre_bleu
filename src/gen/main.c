@@ -58,8 +58,7 @@ static void run_child(const char *target_path, int argc, char **argv) {
     }
     (void)raise(SIGSTOP);
 
-    char **exec_args = (char**)malloc(sizeof(char*) * (size_t)argc);
-    if (!exec_args) _exit(1);
+    char *exec_args[argc - 1];
     for (int i = 2; i < argc; ++i) {
         exec_args[i - 2] = argv[i];
     }
