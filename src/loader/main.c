@@ -74,10 +74,20 @@ static sacre_status_t find_sandbox_section(const char *path, uint8_t **out_buffe
 static bool landlock_add_path(int ruleset_fd, const char *path, uint64_t allowed_access) {
     int fd = open(path, O_PATH | O_CLOEXEC);
     if (fd < 0) {
-        perror("open path for landlock");
-        return false;
+        // Skip paths that don't exist
+        return true;
     }
     autoclose int fd_guard = fd;
+
+    struct stat st;
+    if (fstat(fd, &st) == 0) {
+        if (!S_ISDIR(st.st_mode)) {
+            allowed_access &= ~LANDLOCK_ACCESS_FS_READ_DIR;
+            allowed_access &= ~LANDLOCK_ACCESS_FS_MAKE_DIR;
+            allowed_access &= ~LANDLOCK_ACCESS_FS_REMOVE_DIR;
+        }
+    }
+
     struct landlock_path_beneath_attr path_attr = {
         .allowed_access = allowed_access,
         .parent_fd = fd,
