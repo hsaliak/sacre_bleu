@@ -1,15 +1,17 @@
-# SacreBleu Suite
-System Audit & Contextual Restriction Engine & Binary Logic Enforcer Utility (made up words to fit the name).
+# SB Sandbox Suite
+**S**ecure **B**inary Sandbox: A suite of tools to embed and enforce security policies directly within ELF binaries.
 
-SacreBleu is made of 3 tools that help you pack your security policy into the headers of elf binaries in Linux. This means that you can set fine grained security policies (syscall whitelists and filesystem restrictions via Landlock) and inject them directly into ELF binaries, and enforce them at runtime. This is useful for shipping "sane defaults" for your tool. Currently, it supports directory/file access permissions through landlock, and syscall allowlists. It's an experiment in bundling reasonable security policies for applications, so that they are well behaved. 
+SB Sandbox is composed of three primary tools that allow you to define, inject, and enforce fine-grained security policies (Seccomp syscall allowlists and Landlock filesystem restrictions) directly into Linux executables. This means that you can set fine grained security policies (syscall whitelists and filesystem restrictions via Landlock) and inject them directly into ELF binaries, and enforce them at runtime. This is useful for shipping "sane defaults" for your tool. Currently, it supports directory/file access permissions through landlock, and syscall allowlists. It's an experiment in bundling reasonable security policies for applications, so that they are well behaved. 
 
 ## Core Components
 
-### 1. `sb-gen` (Generator)
-The **Generator** uses `ptrace` to observe a target application's execution and generate a baseline security policy. 
-*   **Mechanism:** Intercepts syscalls during execution and deduplicates them.
+### 1. `sb-gen` (Generator & Utility)
+The **Generator** uses `ptrace` to observe a target application's execution and generate a baseline security policy. It also includes utility functions for managing policy files.
+
+*   **Generation Mode:** Runs the target application and traces syscalls to build a recommended policy.
+*   **Merge Mode:** Consolidates multiple policy files into one, deduplicating syscalls and filesystem paths.
 *   **Filtering:** Automatically filters out "Critical Syscalls" (see below) that are handled by the loader's default allow-list.
-*   **Output:** Creates an `.ini` policy file with detected syscalls and template sections for Landlock. You can freely edit this, and add / remove functionality.
+*   **Output:** Creates an `.ini` policy file compatible with the rest of the suite.
 
 ### 2. `sb-inject` (Injector)
 The **Injector** takes a security policy (in `.ini` format) and embeds it into a target ELF binary.
@@ -38,7 +40,7 @@ The **Enforcer** is the runtime component that launches the hardened binary.
 *   `libseccomp-dev`
 *   CMake 3.15+
 *   Ninja
-*   C++17 Compiler (GCC/Clang)
+*   C11 Compiler (GCC/Clang)
 
 ### Building & Installation
 
@@ -60,6 +62,12 @@ cmake -DCMAKE_INSTALL_PREFIX=/custom/path ..
 Run your application through the generator to see what it needs. The generator will run the application and trace its syscalls.
 ```bash
 ./build/sb-gen policy.ini ./my_app [arg1] [arg2]
+```
+
+#### Consolidation (Optional)
+If you run the application through multiple code paths, you can merge the resulting policies:
+```bash
+./build/sb-gen merge -o unified.ini run1.ini run2.ini run3.ini
 ```
 
 ### 2. Review and Customize (`policy.ini`)
@@ -92,7 +100,7 @@ Launch the hardened binary using the loader:
 ## Policy Details
 
 ### Critical Syscalls
-The loader automatically allows a set of 48 "Critical Syscalls" necessary for basic process operation (e.g., `execve`, `exit`, `read`, `write`, `mmap`, `rt_sigaction`). These are defined in `src/common/policy.cpp` and are intentionally omitted from generated `.ini` files to keep policies concise. Again, this is for practical purpose. It's just hard to meaningfully load any binary without these. 
+The loader automatically allows a set of 48 "Critical Syscalls" necessary for basic process operation (e.g., `execve`, `exit`, `read`, `write`, `mmap`, `rt_sigaction`). These are defined in `src/common/policy.c` and are intentionally omitted from generated `.ini` files to keep policies concise. Again, this is for practical purpose. It's just hard to meaningfully load any binary without these. 
 
 ### Landlock Path Resolution
 Landlock rules apply to the specific filesystem objects identified by the paths in the policy. This is where a lot of policies can be tweaked. 
@@ -114,5 +122,5 @@ cd build
 ```
 
 ### Code Quality
-The project follows the Google C++ Style Guide and uses `clang-tidy` for linting.
+The project follows the Google C Style Guide and uses `clang-tidy` for linting.
 *   **Auto-fix:** Run `ninja fix-style` in the build directory using `clang-tidy`.
