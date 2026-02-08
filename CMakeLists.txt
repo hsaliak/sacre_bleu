@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(SacreProject LANGUAGES C)
+project(SBProject LANGUAGES C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -52,33 +52,33 @@ set(ASAN_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-g")
 set(ASAN_LINK_FLAGS "-fsanitize=address" "-fsanitize=undefined")
 
 # Common Library (Policy Parser/Binary Format)
-add_library(sacre-common
+add_library(sb-common
   src/common/policy.c
   src/common/ini.c
 )
-target_compile_options(sacre-common PUBLIC ${ASAN_FLAGS})
-target_link_options(sacre-common PUBLIC ${ASAN_LINK_FLAGS})
+target_compile_options(sb-common PUBLIC ${ASAN_FLAGS})
+target_link_options(sb-common PUBLIC ${ASAN_LINK_FLAGS})
 
 # Dependencies
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(Seccomp REQUIRED libseccomp)
 
 # Injector
-add_executable(injector src/injector/main.c src/injector/injector.c)
-target_link_libraries(injector sacre-common)
+add_executable(sb-inject src/injector/main.c src/injector/injector.c)
+target_link_libraries(sb-inject sb-common)
 
 # Loader
-add_executable(loader src/loader/main.c)
-target_include_directories(loader PRIVATE ${Seccomp_INCLUDE_DIRS})
-target_link_libraries(loader sacre-common ${Seccomp_LIBRARIES})
+add_executable(sb-load src/loader/main.c)
+target_include_directories(sb-load PRIVATE ${Seccomp_INCLUDE_DIRS})
+target_link_libraries(sb-load sb-common ${Seccomp_LIBRARIES})
 
 # Generator
-add_executable(gen src/gen/main.c)
-target_include_directories(gen PRIVATE ${Seccomp_INCLUDE_DIRS})
-target_link_libraries(gen sacre-common ${Seccomp_LIBRARIES})
+add_executable(sb-gen src/gen/main.c)
+target_include_directories(sb-gen PRIVATE ${Seccomp_INCLUDE_DIRS})
+target_link_libraries(sb-gen sb-common ${Seccomp_LIBRARIES})
 
 # Installation
-install(TARGETS injector loader gen
+install(TARGETS sb-inject sb-load sb-gen
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Testing
@@ -86,35 +86,35 @@ enable_testing()
 
 # Unit Tests
 add_executable(policy_test src/common/policy_test.c)
-target_link_libraries(policy_test sacre-common)
+target_link_libraries(policy_test sb-common)
 add_test(NAME policy_unit_test COMMAND policy_test)
 
 add_executable(injector_test src/injector/injector_test.c src/injector/injector.c)
-target_link_libraries(injector_test sacre-common)
+target_link_libraries(injector_test sb-common)
 add_test(NAME injector_unit_test COMMAND injector_test)
 
 # Integration Tests
 # 1. Basic success (seccomp + landlock)
 add_test(NAME integration_test_basic
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
-         $<TARGET_FILE:injector>
-         $<TARGET_FILE:loader>
+         $<TARGET_FILE:sb-inject>
+         $<TARGET_FILE:sb-load>
          $<TARGET_FILE:minimal_target>
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_policy.ini)
 
 # 2. Seccomp success (allows needed syscalls)
 add_test(NAME integration_test_seccomp_success
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
-         $<TARGET_FILE:injector>
-         $<TARGET_FILE:loader>
+         $<TARGET_FILE:sb-inject>
+         $<TARGET_FILE:sb-load>
          $<TARGET_FILE:minimal_target>
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/seccomp_safe.ini)
 
 # 3. Seccomp violation (killed when calling forbidden getppid)
 add_test(NAME integration_test_seccomp_violation
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration_test.sh
-         $<TARGET_FILE:injector>
-         $<TARGET_FILE:loader>
+         $<TARGET_FILE:sb-inject>
+         $<TARGET_FILE:sb-load>
          $<TARGET_FILE:violation_target>
          ${CMAKE_CURRENT_SOURCE_DIR}/tests/seccomp_violation.ini)
 set_tests_properties(integration_test_seccomp_violation PROPERTIES ENVIRONMENT "EXPECT_KILL=1")
@@ -122,9 +122,9 @@ set_tests_properties(integration_test_seccomp_violation PROPERTIES ENVIRONMENT "
 # 4. Policy Generator Test
 add_test(NAME integration_test_gen
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/gen_test.sh
-         $<TARGET_FILE:gen>
-         $<TARGET_FILE:injector>
-         $<TARGET_FILE:loader>
+         $<TARGET_FILE:sb-gen>
+         $<TARGET_FILE:sb-inject>
+         $<TARGET_FILE:sb-load>
          $<TARGET_FILE:minimal_target>)
 #
 # Test Target

@@ -5,7 +5,7 @@ GEN=$1
 INJECTOR=$2
 LOADER=$3
 TARGET=$4
-OUTPUT_INI="/tmp/sacre_gen_test.ini"
+OUTPUT_INI="/tmp/sb_gen_test.ini"
 TARGET_COPY="/tmp/minimal_target_gen_test"
 
 echo "Testing gen..."

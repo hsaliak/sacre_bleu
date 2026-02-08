@@ -5,18 +5,18 @@ SacreBleu is made of 3 tools that help you pack your security policy into the he
 
 ## Core Components
 
-### 1. `gen` (Generator)
+### 1. `sb-gen` (Generator)
 The **Generator** uses `ptrace` to observe a target application's execution and generate a baseline security policy. 
 *   **Mechanism:** Intercepts syscalls during execution and deduplicates them.
 *   **Filtering:** Automatically filters out "Critical Syscalls" (see below) that are handled by the loader's default allow-list.
 *   **Output:** Creates an `.ini` policy file with detected syscalls and template sections for Landlock. You can freely edit this, and add / remove functionality.
 
-### 2. `injector` (Injector)
+### 2. `sb-inject` (Injector)
 The **Injector** takes a security policy (in `.ini` format) and embeds it into a target ELF binary.
 *   **Mechanism:** It serializes the policy into a custom, non-allocatable ELF section named `.sandbox`.
 *   **Integrity:** The policy becomes part of the binary's metadata, ensuring it travels with the executable.
 
-### 3. `loader` (Enforcer)
+### 3. `sb-load` (Enforcer)
 The **Enforcer** is the runtime component that launches the hardened binary.
 *   **Parsing:** It extracts the binary policy from the `.sandbox` section of the provided executable.
 *   **Isolation:**
@@ -59,7 +59,7 @@ cmake -DCMAKE_INSTALL_PREFIX=/custom/path ..
 ### 1. Generate a Policy
 Run your application through the generator to see what it needs. The generator will run the application and trace its syscalls.
 ```bash
-./build/gen policy.ini ./my_app [arg1] [arg2]
+./build/sb-gen policy.ini ./my_app [arg1] [arg2]
 ```
 
 ### 2. Review and Customize (`policy.ini`)
@@ -80,13 +80,13 @@ allow = uname, getcwd, brk
 ### 3. Inject the Policy
 Combine the policy and the binary into a new, hardened executable:
 ```bash
-./build/injector policy.ini ./my_app ./my_app_hardened
+./build/sb-inject policy.ini ./my_app ./my_app_hardened
 ```
 
 ### 4. Run with Enforcement
 Launch the hardened binary using the loader:
 ```bash
-./build/loader ./my_app_hardened [args...]
+./build/sb-load ./my_app_hardened [args...]
 ```
 
 ## Policy Details
@@ -110,7 +110,7 @@ Landlock rules apply to the specific filesystem objects identified by the paths 
 ```bash
 cd build
 ./policy_test
-../tests/integration_test.sh ./injector ./loader ./minimal_target ../tests/integration_policy.ini
+../tests/integration_test.sh ./sb-inject ./sb-load ./minimal_target ../tests/integration_policy.ini
 ```
 
 ### Code Quality

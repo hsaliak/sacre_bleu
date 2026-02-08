@@ -24,11 +24,11 @@ rw = /tmp
 EOF
 
 # Merge them
-./build/gen merge -o "$TEST_DIR/merged.ini" "$TEST_DIR/p1.ini" "$TEST_DIR/p2.ini"
+./build/sb-gen merge -o "$TEST_DIR/merged.ini" "$TEST_DIR/p1.ini" "$TEST_DIR/p2.ini"
 
 # Verify content of merged.ini
 grep -q "allow = read, write, exit" "$TEST_DIR/merged.ini"
 grep -q "ro = /usr/lib, /lib64" "$TEST_DIR/merged.ini"
 grep -q "rw = /tmp" "$TEST_DIR/merged.ini"
 
-echo "Integration test for sacre-gen merge passed."
+echo "Integration test for sb-gen merge passed."

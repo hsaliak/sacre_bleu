@@ -58,7 +58,7 @@ static sacre_status_t run_injection(const sacre_inject_args_t *args) {
     status = sacre_policy_serialize(&policy, &buffer, &size);
     if (status != SACRE_OK) return status;
     
-    char blob_template[] = "/tmp/sacre_blobXXXXXX";
+    char blob_template[] = "/tmp/sb_blobXXXXXX";
     int fd = mkstemp(blob_template);
     if (fd < 0) return SACRE_ERR_IO;
     autoclose int fd_guard = fd;
@@ -81,7 +81,7 @@ static sacre_status_t run_injection(const sacre_inject_args_t *args) {
 }
 
 static sacre_status_t run_extraction(const sacre_inject_args_t *args) {
-    char dump_template[] = "/tmp/sacre_dumpXXXXXX";
+    char dump_template[] = "/tmp/sb_dumpXXXXXX";
     int fd = mkstemp(dump_template);
     if (fd < 0) return SACRE_ERR_IO;
     autoclose int fd_guard = fd;
